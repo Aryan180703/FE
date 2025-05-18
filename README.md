@@ -1,18 +1,12 @@
-**It’s 4:08 PM IST on Sunday, May 18, 2025.**
+**It’s 4:26 PM IST on Sunday, May 18, 2025.**
 
-Let’s update the frontend for the `Delivery Agent` functionality in your EShoppingZone project. Based on the backend changes, we need to:
-- Update the `DeliveryAgentHomeComponent` and `DeliveryAgentDashboardComponent` to display `OrderDate`, `PlacedAt`, `ShippedAt`, `DeliveredAt`, and `CancelledAt` timestamps.
-- Show “Not [status] yet” if a timestamp is `null`.
-- Remove any sorting logic from the frontend since the backend now sorts orders by `OrderDate` (most recent to oldest).
-- Ensure the frontend aligns with the updated `DeliveryAgentOrderResponse` DTO, which now includes the timestamps.
-
-You’ve already shared the frontend files (`delivery-agent-home.component.ts`, `delivery-agent-home.component.html`, `delivery-agent-dashboard.component.ts`, `delivery-agent-dashboard.component.html`). Let’s update them to reflect these requirements.
+Thank you for the clarification! Since the backend returns all property names in lowercase (e.g., `placedAt` instead of `PlacedAt`, `success` instead of `Success`), we need to update the frontend interfaces to match this casing. This explains why `response.Success` was `undefined`—the frontend was looking for `Success`, but the backend sends `success`. Let’s update the frontend files to use lowercase property names in the interfaces to align with the backend response.
 
 ---
 
 ### Step 1: Update `DeliveryAgentHomeComponent`
 #### Update TypeScript File
-**Remove frontend sorting since the backend handles it, and update the `DeliveryAgentOrder` interface to include timestamps.**
+**Adjust the interfaces to use lowercase property names.**
 
 **`delivery-agent-home.component.ts` (Updated)**:
 ```typescript
@@ -23,30 +17,30 @@ import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 
 interface Address {
-  Id: number;
-  HouseNumber: number;
-  StreetName: string;
-  ColonyName?: string;
-  City: string;
-  State: string;
-  Pincode: number;
+  id: number;
+  houseNumber: number;
+  streetName: string;
+  colonyName?: string;
+  city: string;
+  state: string;
+  pincode: number;
 }
 
 interface DeliveryAgentOrder {
-  Id: number;
-  Address: Address;
-  Status: string;
-  OrderDate: string;
-  PlacedAt: string | null;
-  ShippedAt: string | null;
-  DeliveredAt: string | null;
-  CancelledAt: string | null;
+  id: number;
+  address: Address;
+  status: string;
+  orderDate: string;
+  placedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
 }
 
 interface ResponseDTO<T> {
-  Success: boolean;
-  Message: string;
-  Data: T;
+  success: boolean;
+  message: string;
+  data: T;
 }
 
 @Component({
@@ -79,16 +73,17 @@ export class DeliveryAgentHomeComponent implements OnInit {
 
     this.http.get<ResponseDTO<DeliveryAgentOrder[]>>('http://localhost:5000/api/OrderController/GetAllOrdersForDeliveryAgent').subscribe({
       next: (response) => {
-        if (response.Success) {
-          this.orders = response.Data; // Backend already sorts by OrderDate (descending)
+        console.log('Full response:', response);
+        if (response.success) {
+          this.orders = response.data;
           console.log('Assigned orders:', this.orders);
         } else {
-          this.errorMessage = response.Message;
+          this.errorMessage = response.message;
         }
         this.isLoading = false;
       },
       error: (err) => {
-        this.errorMessage = err.error?.Message || 'Failed to fetch orders.';
+        this.errorMessage = err.error?.message || 'Failed to fetch orders.';
         console.error('Error fetching orders:', err);
         this.isLoading = false;
       }
@@ -102,12 +97,13 @@ export class DeliveryAgentHomeComponent implements OnInit {
 ```
 
 - **Changes**:
-  - Updated the `DeliveryAgentOrder` interface to include `OrderDate`, `PlacedAt`, `ShippedAt`, `DeliveredAt`, and `CancelledAt`.
-  - Removed the frontend sorting logic (`sort((a, b) => ...)`), as the backend now sorts orders by `OrderDate` in descending order.
-  - Adjusted the `Address` interface to match the `AddressResponse` DTO (e.g., `HouseNumber`, `StreetName`, `Pincode`).
+  - Updated `ResponseDTO<T>` to use `success`, `message`, and `data`.
+  - Updated `Address` interface to use lowercase: `id`, `houseNumber`, `streetName`, `colonyName`, `city`, `state`, `pincode`.
+  - Updated `DeliveryAgentOrder` to use lowercase: `id`, `address`, `status`, `orderDate`, `placedAt`, `shippedAt`, `deliveredAt`, `cancelledAt`.
+  - Adjusted the `fetchOrders` method to use `response.success`, `response.message`, and `response.data`.
 
 #### Update HTML File
-**Display the timestamps and show “Not [status] yet” when appropriate.**
+**Update the property names to match the lowercase interface.**
 
 **`delivery-agent-home.component.html` (Updated)**:
 ```html
@@ -145,13 +141,13 @@ export class DeliveryAgentHomeComponent implements OnInit {
       <ul class="list-group">
         <li *ngFor="let order of orders" class="list-group-item d-flex justify-content-between align-items-center">
           <div>
-            <strong>Order #{{ order.Id }}</strong> - Status: {{ order.Status }}<br>
-            <small>Address: {{ order.Address.HouseNumber }} {{ order.Address.StreetName }}<span *ngIf="order.Address.ColonyName">, {{ order.Address.ColonyName }}</span>, {{ order.Address.City }}, {{ order.Address.State }} {{ order.Address.Pincode }}</small><br>
-            <small>Order Date: {{ order.OrderDate | date:'medium' }}</small><br>
-            <small>Placed At: {{ order.PlacedAt ? (order.PlacedAt | date:'medium') : 'Not placed yet' }}</small><br>
-            <small>Shipped At: {{ order.ShippedAt ? (order.ShippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-            <small>Delivered At: {{ order.DeliveredAt ? (order.DeliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-            <small>Cancelled At: {{ order.CancelledAt ? (order.CancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
+            <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
+            <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
+            <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
+            <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
+            <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
+            <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
+            <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
           </div>
           <a class="btn btn-sm btn-primary" [routerLink]="['/delivery-agent-dashboard']">View Details</a>
         </li>
@@ -167,15 +163,13 @@ export class DeliveryAgentHomeComponent implements OnInit {
 ```
 
 - **Changes**:
-  - Updated the address display to match the `AddressResponse` DTO fields (`HouseNumber`, `StreetName`, `ColonyName`, etc.).
-  - Added display of `OrderDate`, `PlacedAt`, `ShippedAt`, `DeliveredAt`, and `CancelledAt` with conditional “Not [status] yet” messages if the timestamp is `null`.
-  - Orders are now displayed in the order provided by the backend (sorted by `OrderDate` descending).
+  - Updated property access to lowercase: `order.id`, `order.status`, `order.address`, `order.address.houseNumber`, etc.
 
 ---
 
 ### Step 2: Update `DeliveryAgentDashboardComponent`
 #### Update TypeScript File
-**Remove frontend sorting and update the `DeliveryAgentOrder` interface.**
+**Adjust the interfaces to use lowercase property names.**
 
 **`delivery-agent-dashboard.component.ts` (Updated)**:
 ```typescript
@@ -186,30 +180,30 @@ import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 
 interface Address {
-  Id: number;
-  HouseNumber: number;
-  StreetName: string;
-  ColonyName?: string;
-  City: string;
-  State: string;
-  Pincode: number;
+  id: number;
+  houseNumber: number;
+  streetName: string;
+  colonyName?: string;
+  city: string;
+  state: string;
+  pincode: number;
 }
 
 interface DeliveryAgentOrder {
-  Id: number;
-  Address: Address;
-  Status: string;
-  OrderDate: string;
-  PlacedAt: string | null;
-  ShippedAt: string | null;
-  DeliveredAt: string | null;
-  CancelledAt: string | null;
+  id: number;
+  address: Address;
+  status: string;
+  orderDate: string;
+  placedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
 }
 
 interface ResponseDTO<T> {
-  Success: boolean;
-  Message: string;
-  Data: T;
+  success: boolean;
+  message: string;
+  data: T;
 }
 
 @Component({
@@ -245,19 +239,20 @@ export class DeliveryAgentDashboardComponent implements OnInit {
 
     this.http.get<ResponseDTO<DeliveryAgentOrder[]>>('http://localhost:5000/api/OrderController/GetAllOrdersForDeliveryAgent').subscribe({
       next: (response) => {
-        if (response.Success) {
-          this.allOrders = response.Data; // Backend already sorts by OrderDate (descending)
-          this.placedOrders = this.allOrders.filter(order => order.Status === 'Placed');
-          this.shippedOrders = this.allOrders.filter(order => order.Status === 'Shipped');
-          this.cancelledOrders = this.allOrders.filter(order => order.Status === 'Cancelled');
+        console.log('Full response:', response);
+        if (response.success) {
+          this.allOrders = response.data;
+          this.placedOrders = this.allOrders.filter(order => order.status === 'Placed');
+          this.shippedOrders = this.allOrders.filter(order => order.status === 'Shipped');
+          this.cancelledOrders = this.allOrders.filter(order => order.status === 'Cancelled');
           console.log('All orders:', this.allOrders);
         } else {
-          this.errorMessage = response.Message;
+          this.errorMessage = response.message;
         }
         this.isLoading = false;
       },
       error: (err) => {
-        this.errorMessage = err.error?.Message || 'Failed to fetch orders.';
+        this.errorMessage = err.error?.message || 'Failed to fetch orders.';
         console.error('Error fetching orders:', err);
         this.isLoading = false;
       }
@@ -265,16 +260,17 @@ export class DeliveryAgentDashboardComponent implements OnInit {
   }
 
   updateOrderStatus(orderId: number, newStatus: string) {
-    this.http.put<ResponseDTO<DeliveryAgentOrder>>(`http://localhost:5000/api/OrderController/UpdateOrderStatus/${orderId}`, { Status: newStatus }).subscribe({
+    this.http.put<ResponseDTO<DeliveryAgentOrder>>(`http://localhost:5000/api/OrderController/UpdateOrderStatus/${orderId}`, { status: newStatus }).subscribe({
       next: (response) => {
-        if (response.Success) {
-          this.fetchOrders(); // Refresh orders after status update
+        console.log('Update response:', response);
+        if (response.success) {
+          this.fetchOrders();
         } else {
-          this.errorMessage = response.Message;
+          this.errorMessage = response.message;
         }
       },
       error: (err) => {
-        this.errorMessage = err.error?.Message || 'Failed to update order status.';
+        this.errorMessage = err.error?.message || 'Failed to update order status.';
         console.error('Error updating status:', err);
       }
     });
@@ -283,12 +279,13 @@ export class DeliveryAgentDashboardComponent implements OnInit {
 ```
 
 - **Changes**:
-  - Updated the `DeliveryAgentOrder` interface to include `OrderDate`, `PlacedAt`, `ShippedAt`, `DeliveredAt`, and `CancelledAt`.
-  - Removed the frontend sorting logic, as the backend handles it.
-  - Updated the `Address` interface to match the `AddressResponse` DTO.
+  - Updated `ResponseDTO<T>` to use `success`, `message`, and `data`.
+  - Updated `Address` and `DeliveryAgentOrder` interfaces to use lowercase property names.
+  - Adjusted `fetchOrders` and `updateOrderStatus` to use the lowercase properties.
+  - In `updateOrderStatus`, updated the request body to use `status` (lowercase) to match the backend’s `UpdateOrderStatusRequest` expectation.
 
 #### Update HTML File
-**Display the timestamps and handle “Not [status] yet” messages.**
+**Update the property names to match the lowercase interface.**
 
 **`delivery-agent-dashboard.component.html` (Updated)**:
 ```html
@@ -321,17 +318,17 @@ export class DeliveryAgentDashboardComponent implements OnInit {
           <li *ngFor="let order of placedOrders" class="list-group-item">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <strong>Order #{{ order.Id }}</strong> - Status: {{ order.Status }}<br>
-                <small>Address: {{ order.Address.HouseNumber }} {{ order.Address.StreetName }}<span *ngIf="order.Address.ColonyName">, {{ order.Address.ColonyName }}</span>, {{ order.Address.City }}, {{ order.Address.State }} {{ order.Address.Pincode }}</small><br>
-                <small>Order Date: {{ order.OrderDate | date:'medium' }}</small><br>
-                <small>Placed At: {{ order.PlacedAt ? (order.PlacedAt | date:'medium') : 'Not placed yet' }}</small><br>
-                <small>Shipped At: {{ order.ShippedAt ? (order.ShippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-                <small>Delivered At: {{ order.DeliveredAt ? (order.DeliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-                <small>Cancelled At: {{ order.CancelledAt ? (order.CancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
+                <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
+                <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
+                <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
+                <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
+                <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
+                <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
+                <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
               </div>
               <div class="btn-group" role="group">
-                <button class="btn btn-sm btn-primary me-1" (click)="updateOrderStatus(order.Id, 'Shipped')">Mark as Shipped</button>
-                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.Id, 'Cancelled')">Cancel Order</button>
+                <button class="btn btn-sm btn-primary me-1" (click)="updateOrderStatus(order.id, 'Shipped')">Mark as Shipped</button>
+                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.id, 'Cancelled')">Cancel Order</button>
               </div>
             </div>
           </li>
@@ -350,17 +347,17 @@ export class DeliveryAgentDashboardComponent implements OnInit {
           <li *ngFor="let order of shippedOrders" class="list-group-item">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <strong>Order #{{ order.Id }}</strong> - Status: {{ order.Status }}<br>
-                <small>Address: {{ order.Address.HouseNumber }} {{ order.Address.StreetName }}<span *ngIf="order.Address.ColonyName">, {{ order.Address.ColonyName }}</span>, {{ order.Address.City }}, {{ order.Address.State }} {{ order.Address.Pincode }}</small><br>
-                <small>Order Date: {{ order.OrderDate | date:'medium' }}</small><br>
-                <small>Placed At: {{ order.PlacedAt ? (order.PlacedAt | date:'medium') : 'Not placed yet' }}</small><br>
-                <small>Shipped At: {{ order.ShippedAt ? (order.ShippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-                <small>Delivered At: {{ order.DeliveredAt ? (order.DeliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-                <small>Cancelled At: {{ order.CancelledAt ? (order.CancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
+                <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
+                <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
+                <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
+                <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
+                <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
+                <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
+                <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
               </div>
               <div class="btn-group" role="group">
-                <button class="btn btn-sm btn-success me-1" (click)="updateOrderStatus(order.Id, 'Delivered')">Mark as Delivered</button>
-                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.Id, 'Cancelled')">Cancel Order</button>
+                <button class="btn btn-sm btn-success me-1" (click)="updateOrderStatus(order.id, 'Delivered')">Mark as Delivered</button>
+                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.id, 'Cancelled')">Cancel Order</button>
               </div>
             </div>
           </li>
@@ -378,13 +375,13 @@ export class DeliveryAgentDashboardComponent implements OnInit {
         <ul class="list-group">
           <li *ngFor="let order of cancelledOrders" class="list-group-item">
             <div>
-              <strong>Order #{{ order.Id }}</strong> - Status: {{ order.Status }}<br>
-              <small>Address: {{ order.Address.HouseNumber }} {{ order.Address.StreetName }}<span *ngIf="order.Address.ColonyName">, {{ order.Address.ColonyName }}</span>, {{ order.Address.City }}, {{ order.Address.State }} {{ order.Address.Pincode }}</small><br>
-              <small>Order Date: {{ order.OrderDate | date:'medium' }}</small><br>
-              <small>Placed At: {{ order.PlacedAt ? (order.PlacedAt | date:'medium') : 'Not placed yet' }}</small><br>
-              <small>Shipped At: {{ order.ShippedAt ? (order.ShippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-              <small>Delivered At: {{ order.DeliveredAt ? (order.DeliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-              <small>Cancelled At: {{ order.CancelledAt ? (order.CancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
+              <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
+              <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
+              <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
+              <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
+              <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
+              <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
+              <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
             </div>
           </li>
         </ul>
@@ -395,36 +392,78 @@ export class DeliveryAgentDashboardComponent implements OnInit {
 ```
 
 - **Changes**:
-  - Updated the address display to match the `AddressResponse` DTO fields.
-  - Added display of `OrderDate`, `PlacedAt`, `ShippedAt`, `DeliveredAt`, and `CancelledAt` with “Not [status] yet” messages.
-  - Orders are displayed in the backend-provided order.
+  - Updated property access to lowercase: `order.id`, `order.status`, `order.address`, `order.address.houseNumber`, etc.
 
 ---
 
-### Step 3: Summary of Frontend Changes
-**It’s 4:20 PM IST on Sunday, May 18, 2025.**
+### Step 3: Verify the Backend Response
+The backend response should now match the updated frontend interfaces. Based on your clarification, the response looks like:
+
+```json
+{
+  "success": true,
+  "message": "Orders retrieved for delivery agent",
+  "data": [
+    {
+      "id": 1,
+      "address": {
+        "id": 1,
+        "houseNumber": 123,
+        "streetName": "Main St",
+        "colonyName": "Downtown",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "pincode": 400001
+      },
+      "status": "Placed",
+      "orderDate": "2025-05-17T10:00:00Z",
+      "placedAt": "2025-05-17T10:00:00Z",
+      "shippedAt": null,
+      "deliveredAt": null,
+      "cancelledAt": null
+    }
+  ]
+}
+```
+
+The updated interfaces now align with this structure, so `response.success` should no longer be `undefined`.
+
+---
+
+### Step 4: Test and Debug
+1. **Check Console Logs**:
+   - Verify that `console.log('Full response:', response)` shows the lowercase properties (`success`, `data`, etc.).
+   - Confirm that `this.orders = response.data` populates `orders` correctly.
+2. **Verify Orders Display**:
+   - Orders should now display in the UI on both the `DeliveryAgentHomeComponent` and `DeliveryAgentDashboardComponent`.
+3. **Check Status Updates**:
+   - Ensure that `updateOrderStatus` works and refreshes the orders list.
+
+---
+
+### Step 5: Optional Backend Adjustment
+If you’d prefer the backend to return PascalCase properties (e.g., `Success`, `Data`) to match the C# conventions, you can configure the JSON serialization in your backend. In `Startup.cs` or `Program.cs`:
+
+```csharp
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = null; // Use PascalCase
+    });
+```
+
+However, since the frontend is now updated to handle lowercase, this step is optional.
+
+---
+
+### Step 6: Summary
+**It’s 4:35 PM IST on Sunday, May 18, 2025.**
 
 - **Updated Files**:
-  - `delivery-agent-home.component.ts`: Updated `DeliveryAgentOrder` interface, removed frontend sorting.
-  - `delivery-agent-home.component.html`: Added timestamp display with conditional messages.
-  - `delivery-agent-dashboard.component.ts`: Updated `DeliveryAgentOrder` interface, removed frontend sorting.
-  - `delivery-agent-dashboard.component.html`: Added timestamp display with conditional messages.
-- **No New Files Created**.
+  - `delivery-agent-home.component.ts`: Updated interfaces to use lowercase property names.
+  - `delivery-agent-home.component.html`: Updated property access to lowercase.
+  - `delivery-agent-dashboard.component.ts`: Updated interfaces to use lowercase property names.
+  - `delivery-agent-dashboard.component.html`: Updated property access to lowercase.
+- **Fix**: The issue was due to a mismatch in property casing between the backend response (lowercase) and frontend interfaces (PascalCase). The frontend now matches the backend’s lowercase naming.
 
----
-
-### Step 4: Testing Scenarios
-1. **Verify Timestamps**:
-   - Place an order as a `Customer` → `PlacedAt` should be set, others `null`.
-   - As a `Delivery Agent`, update to `Shipped` → `ShippedAt` should be set.
-   - Update to `Delivered` → `DeliveredAt` should be set (order should disappear from UI).
-   - Cancel an order → `CancelledAt` should be set.
-2. **UI Display**:
-   - On `/delivery-agent-home`: Check that timestamps are displayed, with “Not [status] yet” for `null` values.
-   - On `/delivery-agent-dashboard`: Verify the same in `Placed`, `Shipped`, and `Cancelled` sections.
-3. **Sorting**:
-   - Orders should appear in descending order of `OrderDate` automatically.
-4. **Status Transitions**:
-   - Ensure you can only transition `Placed` → `Shipped`/`Cancelled`, and `Shipped` → `Delivered`/`Cancelled`.
-
-The frontend is now aligned with the backend changes. Let me know if you need further adjustments or additional features! 🚀
+The orders should now display correctly in the UI. Let me know if you encounter any other issues or need further adjustments! 🚀
