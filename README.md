@@ -1,469 +1,387 @@
-**It’s 4:26 PM IST on Sunday, May 18, 2025.**
-
-Thank you for the clarification! Since the backend returns all property names in lowercase (e.g., `placedAt` instead of `PlacedAt`, `success` instead of `Success`), we need to update the frontend interfaces to match this casing. This explains why `response.Success` was `undefined`—the frontend was looking for `Success`, but the backend sends `success`. Let’s update the frontend files to use lowercase property names in the interfaces to align with the backend response.
 
 ---
 
-### Step 1: Update `DeliveryAgentHomeComponent`
-#### Update TypeScript File
-**Adjust the interfaces to use lowercase property names.**
+### **Step 1: Discuss the Changes**
+Humare paas `EmailService` class hai jo `SmtpClient` ka use karke emails send karti hai. Iska use karne ke liye hume backend mein yeh changes karne honge:
 
-**`delivery-agent-home.component.ts` (Updated)**:
-```typescript
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { AuthService } from '../../services/auth.service';
+1. **Remove RabbitMQ Dependency**:
+   - `IRabbitMQProducer` aur `RabbitMQProducer` ko hata denge, kyunki ab hum directly `EmailService` ka use karenge.
+   - `Program.cs` se `IRabbitMQProducer` ki dependency injection registration bhi hata denge.
 
-interface Address {
-  id: number;
-  houseNumber: number;
-  streetName: string;
-  colonyName?: string;
-  city: string;
-  state: string;
-  pincode: number;
+2. **Inject `IEmailService` in `RoleRequestController`**:
+   - `RoleRequestController` mein `IRabbitMQProducer` ke bajaye `IEmailService` inject karenge.
+   - Jab bhi email bhejne ki zarurat hogi (application submission, approval, rejection), `IEmailService.SendEmailAsync` call karenge.
+
+3. **Update Email Sending Logic**:
+   - Pehle hum `RabbitMQProducer.PublishMessage` call kar rahe the `user-events` queue mein message publish karne ke liye.
+   - Ab hum `IEmailService.SendEmailAsync` ka use karenge directly email bhejne ke liye.
+   - Email messages ke content same rahenge:
+     - Application submission: "Your application to become a [role] has been accepted. We will review it and get back to you soon."
+     - Approval: "Congratulations! Your request to become a [role] has been approved!"
+     - Rejection: "We regret to inform you that your request to become a [role] has been rejected. Currently, we are looking to expand our team in other areas..."
+
+4. **Remove `EmailMessage` Model** (Optional):
+   - Chuki `EmailService` directly `email`, `subject`, aur `body` parameters leti hai, hume `EmailMessage` model ki zarurat nahi hai ab.
+   - Ise hata sakte hain, lekin agar future mein use ho sakta hai, toh rakh bhi sakte hain.
+
+5. **Configure SMTP Settings**:
+   - `appsettings.json` mein SMTP settings add karne honge (jaise host, port, username, password, etc.) jo `EmailService` use karega.
+
+---
+
+### **Step 2: Implement the Changes**
+
+#### **Step 2.1: Remove RabbitMQ Dependency**
+Pehle RabbitMQ related code hata denge.
+
+**Delete `IRabbitMQProducer` and `RabbitMQProducer`**:
+- `IRabbitMQProducer.cs` aur `RabbitMQProducer.cs` files delete kar do:
+  - Path: `EShoppingZone.Services/IRabbitMQProducer.cs`
+  - Path: `EShoppingZone.Services/RabbitMQProducer.cs`
+
+**Delete `EmailMessage` Model** (Optional):
+Agar `EmailMessage` model ka aur koi use nahi hai, toh ise bhi hata sakte ho:
+- Path: `EShoppingZone.Models/EmailMessage.cs`
+
+**Update `Program.cs`**:
+`IRabbitMQProducer` ki registration hata denge.
+
+**File: `EShoppingZone/Program.cs`**
+```csharp
+using EShoppingZone.Data;
+using EShoppingZone.Models;
+using EShoppingZone.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllers();
+builder.Services.AddDbContext<EShoppingZoneDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddIdentity<UserProfile, IdentityRole>()
+    .AddEntityFrameworkStores<EShoppingZoneDbContext>()
+    .AddDefaultTokenProviders();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRepository, Repository>();
+builder.Services.AddScoped<IEmailService, EmailService>(); // Add EmailService
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = "Jwt";
+    options.DefaultChallengeScheme = "Jwt";
+}).AddJwtBearer("Jwt", options =>
+{
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(
+            System.Text.Encoding.UTF8.GetBytes("YourSuperSecretKey1234567890!@#$%^&*()"))
+    };
+});
+builder.Services.AddAuthorization();
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-interface DeliveryAgentOrder {
-  id: number;
-  address: Address;
-  status: string;
-  orderDate: string;
-  placedAt: string | null;
-  shippedAt: string | null;
-  deliveredAt: string | null;
-  cancelledAt: string | null;
-}
+app.UseHttpsRedirection();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
-interface ResponseDTO<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
+app.Run();
+```
 
-@Component({
-  selector: 'app-delivery-agent-home',
-  standalone: true,
-  imports: [CommonModule, RouterLink],
-  templateUrl: './delivery-agent-home.component.html',
-  styleUrls: ['./delivery-agent-home.component.css']
-})
-export class DeliveryAgentHomeComponent implements OnInit {
-  orders: DeliveryAgentOrder[] = [];
-  errorMessage: string | null = null;
-  isLoading: boolean = false;
+- **Changes**:
+  - `IRabbitMQProducer` ki registration hata di.
+  - `IEmailService` aur `EmailService` register kiya.
 
-  constructor(private http: HttpClient, private authService: AuthService) {}
+#### **Step 2.2: Update `RoleRequestController`**
+Ab `RoleRequestController` mein `IRabbitMQProducer` ko hata ke `IEmailService` inject karenge, aur email sending logic ko update karenge.
 
-  ngOnInit() {
-    this.fetchOrders();
-  }
+**File: `EShoppingZone.Controllers/RoleRequestController.cs`**
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using EShoppingZone.Models;
+using EShoppingZone.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
-  fetchOrders() {
-    if (!this.authService.isLoggedIn() || this.authService.getUserRole() !== 'Delivery Agent') {
-      this.errorMessage = 'Unauthorized access. Please log in as a Delivery Agent.';
-      return;
+namespace EShoppingZone.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class RoleRequestController : ControllerBase
+    {
+        private readonly IRepository _repository;
+        private readonly IEmailService _emailService; // Changed to IEmailService
+        private readonly UserManager<UserProfile> _userManager;
+        private readonly EShoppingZoneDbContext _context;
+
+        public RoleRequestController(
+            IRepository repository,
+            IEmailService emailService, // Changed to IEmailService
+            UserManager<UserProfile> userManager,
+            EShoppingZoneDbContext context)
+        {
+            _repository = repository;
+            _emailService = emailService;
+            _userManager = userManager;
+            _context = context;
+        }
+
+        [HttpPost("SubmitRoleRequest")]
+        [Authorize(Roles = "Customer")]
+        public async Task<IActionResult> SubmitRoleRequest([FromBody] RoleRequestDTO request)
+        {
+            if (request.RequestedRole != "Merchant" && request.RequestedRole != "DeliveryAgent")
+            {
+                return BadRequest(new ResponseDTO<string>
+                {
+                    Success = false,
+                    Message = "Invalid role. Only Merchant or DeliveryAgent allowed.",
+                });
+            }
+
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new ResponseDTO<string>
+                {
+                    Success = false,
+                    Message = "User not authenticated.",
+                });
+            }
+
+            var existingRequest = await _repository.GetRoleRequestByUserIdAsync(userId);
+            if (existingRequest != null)
+            {
+                return BadRequest(new ResponseDTO<string>
+                {
+                    Success = false,
+                    Message = "You already have a pending role request.",
+                });
+            }
+
+            var roleRequest = new RoleRequest
+            {
+                UserId = userId,
+                RequestedRole = request.RequestedRole,
+                Status = "Pending",
+                RequestedAt = DateTime.UtcNow,
+            };
+
+            await _repository.AddRoleRequestAsync(roleRequest);
+
+            // Send email directly using EmailService
+            await _emailService.SendEmailAsync(
+                User.Identity.Name,
+                $"Your application to become a {request.RequestedRole} has been accepted. We will review it and get back to you soon.",
+                "Role Request Submitted"
+            );
+
+            return Ok(new ResponseDTO<string>
+            {
+                Success = true,
+                Message = "Role request submitted successfully.",
+            });
+        }
+
+        [HttpGet("PendingRequests")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetPendingRequests()
+        {
+            var requests = await _repository.GetPendingRoleRequestsAsync();
+            return Ok(new ResponseDTO<List<RoleRequest>>
+            {
+                Success = true,
+                Message = "Pending role requests retrieved successfully.",
+                Data = requests
+            });
+        }
+
+        [HttpPost("ReviewRequest")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ReviewRequest([FromBody] RoleRequestResponseDTO response)
+        {
+            if (response.Status != "Approved" && response.Status != "Rejected")
+            {
+                return BadRequest(new ResponseDTO<string>
+                {
+                    Success = false,
+                    Message = "Invalid status. Status must be 'Approved' or 'Rejected'.",
+                });
+            }
+
+            var roleRequest = await _context.RoleRequests
+                .Include(rr => rr.User)
+                .FirstOrDefaultAsync(rr => rr.Id == response.RequestId);
+            if (roleRequest == null)
+            {
+                return NotFound(new ResponseDTO<string>
+                {
+                    Success = false,
+                    Message = "Role request not found.",
+                });
+            }
+
+            roleRequest.Status = response.Status;
+            roleRequest.ReviewedAt = DateTime.UtcNow;
+            await _repository.UpdateRoleRequestAsync(roleRequest);
+
+            if (response.Status == "Approved")
+            {
+                // Remove existing roles and add the new role
+                var user = roleRequest.User;
+                var existingRoles = await _userManager.GetRolesAsync(user);
+                await _userManager.RemoveFromRolesAsync(user, existingRoles);
+                await _userManager.AddToRoleAsync(user, roleRequest.RequestedRole);
+
+                // Send approval email
+                await _emailService.SendEmailAsync(
+                    user.Email,
+                    $"Congratulations! Your request to become a {roleRequest.RequestedRole} has been approved!",
+                    "Role Request Approved"
+                );
+            }
+            else
+            {
+                // Send rejection email
+                await _emailService.SendEmailAsync(
+                    roleRequest.User.Email,
+                    "We regret to inform you that your request to become a " +
+                    $"{roleRequest.RequestedRole} has been rejected. " +
+                    "Currently, we are looking to expand our team in other areas. " +
+                    "Thank you for your interest!",
+                    "Role Request Rejected"
+                );
+            }
+
+            return Ok(new ResponseDTO<string>
+            {
+                Success = true,
+                Message = $"Role request {response.Status.ToLower()} successfully.",
+            });
+        }
     }
-
-    this.isLoading = true;
-    this.errorMessage = null;
-    this.orders = [];
-
-    this.http.get<ResponseDTO<DeliveryAgentOrder[]>>('http://localhost:5000/api/OrderController/GetAllOrdersForDeliveryAgent').subscribe({
-      next: (response) => {
-        console.log('Full response:', response);
-        if (response.success) {
-          this.orders = response.data;
-          console.log('Assigned orders:', this.orders);
-        } else {
-          this.errorMessage = response.message;
-        }
-        this.isLoading = false;
-      },
-      error: (err) => {
-        this.errorMessage = err.error?.message || 'Failed to fetch orders.';
-        console.error('Error fetching orders:', err);
-        this.isLoading = false;
-      }
-    });
-  }
-
-  refreshOrders() {
-    this.fetchOrders();
-  }
 }
 ```
 
 - **Changes**:
-  - Updated `ResponseDTO<T>` to use `success`, `message`, and `data`.
-  - Updated `Address` interface to use lowercase: `id`, `houseNumber`, `streetName`, `colonyName`, `city`, `state`, `pincode`.
-  - Updated `DeliveryAgentOrder` to use lowercase: `id`, `address`, `status`, `orderDate`, `placedAt`, `shippedAt`, `deliveredAt`, `cancelledAt`.
-  - Adjusted the `fetchOrders` method to use `response.success`, `response.message`, and `response.data`.
+  - `IRabbitMQProducer` ko hata ke `IEmailService` inject kiya.
+  - `RabbitMQProducer.PublishMessage` calls ko hata ke `IEmailService.SendEmailAsync` calls ke saath replace kiya.
+  - Email content same rakha jaise mentor ne bola tha.
 
-#### Update HTML File
-**Update the property names to match the lowercase interface.**
+#### **Step 2.3: Configure SMTP Settings**
+`EmailService` ko SMTP settings ki zarurat hai, jo `appsettings.json` se aayengi.
 
-**`delivery-agent-home.component.html` (Updated)**:
-```html
-<div class="container py-5">
-  <h1 class="text-center mb-4">Welcome, Delivery Agent!</h1>
-  <div class="row">
-    <div class="col-md-6 offset-md-3 text-center">
-      <p>Manage your delivery assignments efficiently.</p>
-      <div class="mb-3">
-        <a class="btn btn-primary me-2" [routerLink]="['/delivery-agent-dashboard']">View Dashboard</a>
-        <button class="btn btn-secondary" (click)="refreshOrders()" [disabled]="isLoading">Refresh Orders</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Error Message -->
-  <div *ngIf="errorMessage" class="alert alert-danger mt-4" role="alert">
-    {{ errorMessage }}
-  </div>
-
-  <!-- Orders Section -->
-  <div class="mt-4">
-    <h3>Your Assigned Orders</h3>
-
-    <!-- Loading State -->
-    <div *ngIf="isLoading" class="text-center">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p>Loading assigned orders...</p>
-    </div>
-
-    <!-- Orders List -->
-    <div *ngIf="!isLoading && orders.length > 0">
-      <ul class="list-group">
-        <li *ngFor="let order of orders" class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
-            <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
-            <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
-            <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
-            <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-            <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-            <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
-          </div>
-          <a class="btn btn-sm btn-primary" [routerLink]="['/delivery-agent-dashboard']">View Details</a>
-        </li>
-      </ul>
-    </div>
-
-    <!-- Empty State -->
-    <div *ngIf="!isLoading && orders.length === 0" class="alert alert-info mt-3" role="alert">
-      No orders assigned to you at the moment.
-    </div>
-  </div>
-</div>
-```
-
-- **Changes**:
-  - Updated property access to lowercase: `order.id`, `order.status`, `order.address`, `order.address.houseNumber`, etc.
-
----
-
-### Step 2: Update `DeliveryAgentDashboardComponent`
-#### Update TypeScript File
-**Adjust the interfaces to use lowercase property names.**
-
-**`delivery-agent-dashboard.component.ts` (Updated)**:
-```typescript
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { AuthService } from '../../services/auth.service';
-
-interface Address {
-  id: number;
-  houseNumber: number;
-  streetName: string;
-  colonyName?: string;
-  city: string;
-  state: string;
-  pincode: number;
-}
-
-interface DeliveryAgentOrder {
-  id: number;
-  address: Address;
-  status: string;
-  orderDate: string;
-  placedAt: string | null;
-  shippedAt: string | null;
-  deliveredAt: string | null;
-  cancelledAt: string | null;
-}
-
-interface ResponseDTO<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
-@Component({
-  selector: 'app-delivery-agent-dashboard',
-  standalone: true,
-  imports: [CommonModule, RouterLink],
-  templateUrl: './delivery-agent-dashboard.component.html',
-  styleUrls: ['./delivery-agent-dashboard.component.css']
-})
-export class DeliveryAgentDashboardComponent implements OnInit {
-  allOrders: DeliveryAgentOrder[] = [];
-  placedOrders: DeliveryAgentOrder[] = [];
-  shippedOrders: DeliveryAgentOrder[] = [];
-  cancelledOrders: DeliveryAgentOrder[] = [];
-  errorMessage: string | null = null;
-  isLoading: boolean = false;
-
-  constructor(private http: HttpClient, private authService: AuthService) {}
-
-  ngOnInit() {
-    this.fetchOrders();
-  }
-
-  fetchOrders() {
-    if (!this.authService.isLoggedIn() || this.authService.getUserRole() !== 'Delivery Agent') {
-      this.errorMessage = 'Unauthorized access. Please log in as a Delivery Agent.';
-      return;
-    }
-
-    this.isLoading = true;
-    this.errorMessage = null;
-    this.allOrders = [];
-
-    this.http.get<ResponseDTO<DeliveryAgentOrder[]>>('http://localhost:5000/api/OrderController/GetAllOrdersForDeliveryAgent').subscribe({
-      next: (response) => {
-        console.log('Full response:', response);
-        if (response.success) {
-          this.allOrders = response.data;
-          this.placedOrders = this.allOrders.filter(order => order.status === 'Placed');
-          this.shippedOrders = this.allOrders.filter(order => order.status === 'Shipped');
-          this.cancelledOrders = this.allOrders.filter(order => order.status === 'Cancelled');
-          console.log('All orders:', this.allOrders);
-        } else {
-          this.errorMessage = response.message;
-        }
-        this.isLoading = false;
-      },
-      error: (err) => {
-        this.errorMessage = err.error?.message || 'Failed to fetch orders.';
-        console.error('Error fetching orders:', err);
-        this.isLoading = false;
-      }
-    });
-  }
-
-  updateOrderStatus(orderId: number, newStatus: string) {
-    this.http.put<ResponseDTO<DeliveryAgentOrder>>(`http://localhost:5000/api/OrderController/UpdateOrderStatus/${orderId}`, { status: newStatus }).subscribe({
-      next: (response) => {
-        console.log('Update response:', response);
-        if (response.success) {
-          this.fetchOrders();
-        } else {
-          this.errorMessage = response.message;
-        }
-      },
-      error: (err) => {
-        this.errorMessage = err.error?.message || 'Failed to update order status.';
-        console.error('Error updating status:', err);
-      }
-    });
-  }
-}
-```
-
-- **Changes**:
-  - Updated `ResponseDTO<T>` to use `success`, `message`, and `data`.
-  - Updated `Address` and `DeliveryAgentOrder` interfaces to use lowercase property names.
-  - Adjusted `fetchOrders` and `updateOrderStatus` to use the lowercase properties.
-  - In `updateOrderStatus`, updated the request body to use `status` (lowercase) to match the backend’s `UpdateOrderStatusRequest` expectation.
-
-#### Update HTML File
-**Update the property names to match the lowercase interface.**
-
-**`delivery-agent-dashboard.component.html` (Updated)**:
-```html
-<div class="container py-5">
-  <h1 class="text-center mb-4">Delivery Agent Dashboard</h1>
-
-  <!-- Error Message -->
-  <div *ngIf="errorMessage" class="alert alert-danger mt-4" role="alert">
-    {{ errorMessage }}
-  </div>
-
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="text-center">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
-    <p>Loading orders...</p>
-  </div>
-
-  <!-- Orders Sections -->
-  <div *ngIf="!isLoading">
-    <!-- Placed Orders -->
-    <div class="mb-5">
-      <h3>Placed Orders</h3>
-      <div *ngIf="placedOrders.length === 0" class="alert alert-info">
-        No placed orders at the moment.
-      </div>
-      <div *ngIf="placedOrders.length > 0">
-        <ul class="list-group">
-          <li *ngFor="let order of placedOrders" class="list-group-item">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
-                <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
-                <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
-                <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
-                <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-                <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-                <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
-              </div>
-              <div class="btn-group" role="group">
-                <button class="btn btn-sm btn-primary me-1" (click)="updateOrderStatus(order.id, 'Shipped')">Mark as Shipped</button>
-                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.id, 'Cancelled')">Cancel Order</button>
-              </div>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Shipped Orders -->
-    <div class="mb-5">
-      <h3>Shipped Orders</h3>
-      <div *ngIf="shippedOrders.length === 0" class="alert alert-info">
-        No shipped orders at the moment.
-      </div>
-      <div *ngIf="shippedOrders.length > 0">
-        <ul class="list-group">
-          <li *ngFor="let order of shippedOrders" class="list-group-item">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
-                <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
-                <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
-                <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
-                <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-                <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-                <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
-              </div>
-              <div class="btn-group" role="group">
-                <button class="btn btn-sm btn-success me-1" (click)="updateOrderStatus(order.id, 'Delivered')">Mark as Delivered</button>
-                <button class="btn btn-sm btn-danger" (click)="updateOrderStatus(order.id, 'Cancelled')">Cancel Order</button>
-              </div>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Cancelled Orders -->
-    <div>
-      <h3>Cancelled Orders</h3>
-      <div *ngIf="cancelledOrders.length === 0" class="alert alert-info">
-        No cancelled orders at the moment.
-      </div>
-      <div *ngIf="cancelledOrders.length > 0">
-        <ul class="list-group">
-          <li *ngFor="let order of cancelledOrders" class="list-group-item">
-            <div>
-              <strong>Order #{{ order.id }}</strong> - Status: {{ order.status }}<br>
-              <small>Address: {{ order.address.houseNumber }} {{ order.address.streetName }}<span *ngIf="order.address.colonyName">, {{ order.address.colonyName }}</span>, {{ order.address.city }}, {{ order.address.state }} {{ order.address.pincode }}</small><br>
-              <small>Order Date: {{ order.orderDate | date:'medium' }}</small><br>
-              <small>Placed At: {{ order.placedAt ? (order.placedAt | date:'medium') : 'Not placed yet' }}</small><br>
-              <small>Shipped At: {{ order.shippedAt ? (order.shippedAt | date:'medium') : 'Not shipped yet' }}</small><br>
-              <small>Delivered At: {{ order.deliveredAt ? (order.deliveredAt | date:'medium') : 'Not delivered yet' }}</small><br>
-              <small>Cancelled At: {{ order.cancelledAt ? (order.cancelledAt | date:'medium') : 'Not cancelled yet' }}</small>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-```
-
-- **Changes**:
-  - Updated property access to lowercase: `order.id`, `order.status`, `order.address`, `order.address.houseNumber`, etc.
-
----
-
-### Step 3: Verify the Backend Response
-The backend response should now match the updated frontend interfaces. Based on your clarification, the response looks like:
-
+**File: `EShoppingZone/appsettings.json`**
 ```json
 {
-  "success": true,
-  "message": "Orders retrieved for delivery agent",
-  "data": [
-    {
-      "id": 1,
-      "address": {
-        "id": 1,
-        "houseNumber": 123,
-        "streetName": "Main St",
-        "colonyName": "Downtown",
-        "city": "Mumbai",
-        "state": "Maharashtra",
-        "pincode": 400001
-      },
-      "status": "Placed",
-      "orderDate": "2025-05-17T10:00:00Z",
-      "placedAt": "2025-05-17T10:00:00Z",
-      "shippedAt": null,
-      "deliveredAt": null,
-      "cancelledAt": null
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=EShoppingZone;Trusted_Connection=True;"
+  },
+  "Smtp": {
+    "Host": "smtp.gmail.com",
+    "Port": "587",
+    "Username": "your-email@gmail.com",
+    "Password": "your-app-password",
+    "FromEmail": "your-email@gmail.com",
+    "FromName": "EShoppingZone Team"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
     }
-  ]
+  },
+  "AllowedHosts": "*"
 }
 ```
 
-The updated interfaces now align with this structure, so `response.success` should no longer be `undefined`.
+- **How to Get App Password for Gmail**:
+  - Agar Gmail use kar rahe ho, toh `Password` mein App Password use karna hoga (normal password nahi chalega due to Gmail's security).
+  - Steps:
+    1. Gmail account mein jao.
+    2. Two-factor authentication enable karo.
+    3. Google Account settings mein "App Passwords" search karo.
+    4. Ek naya App Password generate karo (e.g., name it "EShoppingZone").
+    5. Woh password `appsettings.json` mein `Smtp:Password` mein daal do.
 
----
+- **Other SMTP Providers**:
+  - Agar Gmail nahi use karna chahte, toh koi aur SMTP provider (jaise SendGrid, Outlook) use kar sakte ho. Bas `Host`, `Port`, `Username`, aur `Password` change kar do.
 
-### Step 4: Test and Debug
-1. **Check Console Logs**:
-   - Verify that `console.log('Full response:', response)` shows the lowercase properties (`success`, `data`, etc.).
-   - Confirm that `this.orders = response.data` populates `orders` correctly.
-2. **Verify Orders Display**:
-   - Orders should now display in the UI on both the `DeliveryAgentHomeComponent` and `DeliveryAgentDashboardComponent`.
-3. **Check Status Updates**:
-   - Ensure that `updateOrderStatus` works and refreshes the orders list.
+#### **Step 2.4: Update `IEmailService` Interface**
+Ensure karte hain ki `IEmailService` interface define hai.
 
----
-
-### Step 5: Optional Backend Adjustment
-If you’d prefer the backend to return PascalCase properties (e.g., `Success`, `Data`) to match the C# conventions, you can configure the JSON serialization in your backend. In `Startup.cs` or `Program.cs`:
-
+**File: `EShoppingZone.Interfaces/IEmailService.cs`**
 ```csharp
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+namespace EShoppingZone.Interfaces
+{
+    public interface IEmailService
     {
-        options.JsonSerializerOptions.PropertyNamingPolicy = null; // Use PascalCase
-    });
+        Task SendEmailAsync(string email, string body, string subject);
+    }
+}
 ```
 
-However, since the frontend is now updated to handle lowercase, this step is optional.
+- Yeh already hai, bas confirm kiya.
 
 ---
 
-### Step 6: Summary
-**It’s 4:35 PM IST on Sunday, May 18, 2025.**
+### **Step 3: Test the Changes**
 
-- **Updated Files**:
-  - `delivery-agent-home.component.ts`: Updated interfaces to use lowercase property names.
-  - `delivery-agent-home.component.html`: Updated property access to lowercase.
-  - `delivery-agent-dashboard.component.ts`: Updated interfaces to use lowercase property names.
-  - `delivery-agent-dashboard.component.html`: Updated property access to lowercase.
-- **Fix**: The issue was due to a mismatch in property casing between the backend response (lowercase) and frontend interfaces (PascalCase). The frontend now matches the backend’s lowercase naming.
+Ab backend mein changes ho gaye hain, toh test karte hain:
 
-The orders should now display correctly in the UI. Let me know if you encounter any other issues or need further adjustments! 🚀
+1. **Run the Backend**:
+   ```bash
+   dotnet run
+   ```
+
+2. **Test Role Request Submission**:
+   - Ek `Customer` user ke saath login karo.
+   - `POST /api/RoleRequest/SubmitRoleRequest` call karo:
+     ```json
+     {
+       "RequestedRole": "Merchant"
+     }
+     ```
+   - Check karo ki email aaya ya nahi ("Your application to become a Merchant has been accepted...").
+
+3. **Test Admin Approval/Rejection**:
+   - `Admin` user ke saath login karo.
+   - `GET /api/RoleRequest/PendingRequests` se pending requests dekho.
+   - `POST /api/RoleRequest/ReviewRequest` call karo:
+     ```json
+     {
+       "RequestId": 1,
+       "Status": "Approved"
+     }
+     ```
+     - Check karo ki approval email aaya ("Congratulations! Your request to become a Merchant has been approved!").
+     - User ka role `Merchant` mein update hua ya nahi, check karo.
+   - Doosra test `Status: "Rejected"` ke saath karo aur rejection email check karo.
+
+4. **Error Handling**:
+   - Agar email send nahi ho raha, toh check karo:
+     - `appsettings.json` mein SMTP settings sahi hain ya nahi.
+     - Network issues ya firewall SMTP port (587) block toh nahi kar raha.
+
+---
+
