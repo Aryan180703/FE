@@ -1,479 +1,670 @@
-**It’s 8:10 PM IST on Monday, May 19, 2025.**
+**It’s 8:05 PM IST on Monday, May 19, 2025.**
 
-I understand that the homepage (`/home`) currently shows the same content (a banner, top picks, and categories) for all users, but you want to display role-specific content for each user type (Customer, Guest, Merchant, Delivery Agent, Admin). The current `HomeComponent` is designed with a customer-focused layout, including product listings and a cart feature, which isn’t suitable for other roles like Merchants, Delivery Agents, or Admins. We’ll modify the `HomeComponent` to show role-specific content while preserving the existing functionality for Customers and Guests.
-
----
-
-### Step 1: Plan the Changes
-We need to:
-1. **Determine the User’s Role**: Use `AuthService` to check the user’s role.
-2. **Show Role-Specific Content**:
-   - **Customer/Guest**: Keep the current layout (banner, top picks, categories, and cart functionality).
-   - **Merchant**: Show a welcome message with a link to `/merchant-dashboard`.
-   - **Delivery Agent**: Show a welcome message with a link to `/delivery-agent-home`.
-   - **Admin**: Show a welcome message with a link to `/admin-home`.
-3. **Preserve Existing Functionality**: Ensure the product listings, cart modals, and other features remain functional for Customers and Guests.
+Let’s address the issues one by one: the header (navbar) for guest users, the non-functional role request buttons for Customers, the missing quick options for Merchants, and the Delivery Agent header options.
 
 ---
 
-### Step 2: Update `HomeComponent` Files
-#### Update `home.component.ts`
-We’ll add logic to determine the user’s role and conditionally load the product data only for Customers and Guests.
+### Issue 1: Guest User Not Having Proper Header (Navbar)
+The `HeaderComponent` currently shows the same navbar for all users, but guest users (unauthenticated users) should see a simplified navbar without role-specific links like Products, Deals, or Cart, and only display "Login" and "Signup" buttons.
 
-**`home.component.ts` (Updated)**:
-```typescript
-import { Component, OnInit } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { CommonModule } from '@angular/common';
-import { ProductService, Product } from '../../services/product.service';
-import { CartRequest, CartService } from '../../services/cart.service';
-import { AuthService } from '../../services/auth.service';
-import { FormsModule } from '@angular/forms';
+#### Fix: Update `HeaderComponent` to Show a Guest-Specific Navbar
+We’ll modify the `HeaderComponent` to conditionally hide role-specific links for guest users and only show the brand logo (linking to `/`), "Login", and "Signup" buttons.
 
-@Component({
-  selector: 'app-home',
-  standalone: true,
-  imports: [RouterLink, CommonModule, FormsModule],
-  templateUrl: './home.component.html',
-  styleUrls: ['./home.component.css']
-})
-export class HomeComponent implements OnInit {
-  products: Product[] = [];
-  topPicks: Product[] = [];
-  categories: string[] = [];
-  selectedProductId: number | null = null;
-  quantity: number = 1;
-  showQuantityModal: boolean = false;
-  showLoginModal: boolean = false;
-  userRole: string | null = null;
-
-  constructor(
-    private productService: ProductService,
-    private cartService: CartService,
-    private authService: AuthService
-  ) {}
-
-  ngOnInit() {
-    // Determine user role
-    if (this.authService.isLoggedIn()) {
-      this.userRole = this.authService.getUserRole();
-    } else {
-      this.userRole = 'Guest';
-    }
-
-    // Load products only for Customer and Guest users
-    if (this.userRole === 'Customer' || this.userRole === 'Guest') {
-      this.productService.getProducts().subscribe({
-        next: (response) => {
-          if (response.success && response.data && response.data.length > 0) {
-            this.products = response.data;
-            this.topPicks = response.data.slice(0, 4);
-            this.categories = [...new Set(response.data.map(p => p.category).filter(c => c))];
-          } else {
-            console.error('No products received:', response.message);
-            this.products = [];
-            this.topPicks = [];
-            this.categories = [];
-          }
-        },
-        error: (err) => {
-          console.error('Error fetching products:', err);
-          this.products = [];
-          this.topPicks = [];
-          this.categories = [];
-        }
-      });
-    }
-  }
-
-  getFirstImage(images?: string): string {
-    return images ? images.split(',')[0] : 'https://via.placeholder.com/300x200?text=No+Image';
-  }
-
-  handleImageError(event: Event) {
-    const imgElement = event.target as HTMLImageElement;
-    if (imgElement.src !== 'https://via.placeholder.com/300x200?text=No+Image') {
-      imgElement.src = 'https://via.placeholder.com/300x200?text=No+Image';
-      imgElement.onerror = null;
-    }
-  }
-
-  showLoginDialog() {
-    this.showLoginModal = true;
-  }
-
-  closeLoginModal() {
-    this.showLoginModal = false;
-  }
-
-  addToCart(productId: number) {
-    const isLoggedIn = this.authService.isLoggedIn();
-    console.log('Is user logged in:', isLoggedIn);
-    if (!isLoggedIn) {
-      this.showLoginDialog();
-    } else {
-      this.selectedProductId = productId;
-      this.quantity = 1;
-      this.showQuantityModal = true;
-      console.log('Show quantity modal:', this.showQuantityModal);
-    }
-  }
-
-  confirmAddToCart() {
-    if (this.selectedProductId) {
-      const cartRequest: CartRequest = {
-        productId: this.selectedProductId,
-        quantity: this.quantity
-      };
-      this.cartService.addToCart(cartRequest).subscribe({
-        next: (response) => {
-          if (response.success) {
-            console.log('Added to cart:', response.data);
-            this.closeQuantityModal();
-          } else {
-            console.error('Failed to add to cart:', response.message);
-          }
-        },
-        error: (err) => {
-          console.error('Error adding to cart:', err);
-        }
-      });
-    }
-  }
-
-  closeQuantityModal() {
-    this.showQuantityModal = false;
-    this.selectedProductId = null;
-    this.quantity = 1;
-  }
-}
-```
-
-- **Changes**:
-  - Added `userRole` property to store the user’s role.
-  - Set `userRole` to `'Guest'` for unauthenticated users or fetched it using `authService.getUserRole()` for logged-in users.
-  - Wrapped the product fetching logic in an `if` condition to load products only for Customers and Guests.
-
-#### Update `home.component.html`
-We’ll modify the template to show role-specific content while keeping the existing layout for Customers and Guests.
-
-**`home.component.html` (Updated)**:
+**`header.component.html` (Updated)**:
 ```html
-<!-- Role-Specific Content -->
-<ng-container *ngIf="userRole === 'Customer' || userRole === 'Guest'; else roleSpecificContent">
-  <!-- Banner -->
-  <div class="bg-primary text-white py-5 mb-4">
-    <div class="container text-center px-5">
-      <h1 class="display-4 fw-bold">Welcome to EShoppingZone</h1>
-      <p class="lead mb-4">Discover the best deals on your favorite products!</p>
-      <a class="btn btn-light btn-lg" [routerLink]="['/products']">Shop Now</a>
-    </div>
-  </div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid px-5">
+    <!-- Brand -->
+    <a class="navbar-brand fw-bold" [routerLink]="['/']">EShoppingZone</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+      aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-  <!-- Top Picks for You -->
-  <div class="container mb-5 px-5" *ngIf="products.length > 0; else loading">
-    <h2 class="fw-bold mb-4">Top Picks for You</h2>
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
-      <div class="col" *ngFor="let product of topPicks">
-        <div class="card h-100 border">
-          <a [routerLink]="['/product', product.id]">
-            <div class="image-container">
-              <img [src]="getFirstImage(product.images)" class="card-img-top" [alt]="product.name" (error)="handleImageError($event)">
-            </div>
-          </a>
-          <div class="card-body">
-            <a [routerLink]="['/product', product.id]" class="text-decoration-none">
-              <h6 class="card-title">{{ product.name }}</h6>
-              <p class="card-text text-muted">{{ product.price | currency : 'INR' }}</p>
-              <div class="d-flex align-items-center">
-                <ng-container *ngFor="let i of [1,2,3,4,5]; let index = index">
-                  <i class="bi bi-star-fill text-warning me-1" *ngIf="product.averageRating >= index + 1"></i>
-                  <i class="bi bi-star text-warning me-1" *ngIf="product.averageRating <= index && product.averageRating < index + 1"></i>
-                  <i class="bi bi-star-fill text-warning me-1" *ngIf="product.averageRating > index && product.averageRating < index + 1" [style.width]="(product.averageRating - index) * 16 + 'px'" style="overflow: hidden; position: absolute;"></i>
-                </ng-container>
-                <span class="text-muted small">({{ product.reviewCount }})</span>
-              </div>
+    <!-- Navbar Content -->
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <!-- Navigation Links -->
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-3">
+        <!-- Show Home link for all users -->
+        <li class="nav-item">
+          <a class="nav-link" [routerLink]="['/']" routerLinkActive="active">Home</a>
+        </li>
+        <!-- Show Products and Deals only for authenticated Customers -->
+        <li class="nav-item" *ngIf="isCustomer && authService.isLoggedIn()">
+          <a class="nav-link" [routerLink]="['/products']" routerLinkActive="active">Products</a>
+        </li>
+        <li class="nav-item" *ngIf="isCustomer && authService.isLoggedIn()">
+          <a class="nav-link" [routerLink]="['/deals']" routerLinkActive="active">Deals</a>
+        </li>
+        <!-- Merchant Links -->
+        <li class="nav-item" *ngIf="isMerchant">
+          <a class="nav-link" [routerLink]="['/merchant-dashboard']" routerLinkActive="active">Dashboard</a>
+        </li>
+        <li class="nav-item" *ngIf="isMerchant">
+          <a class="nav-link" [routerLink]="['/manage-products']" routerLinkActive="active">Manage Products</a>
+        </li>
+        <!-- Delivery Agent Links -->
+        <li class="nav-item" *ngIf="isDeliveryAgent">
+          <a class="nav-link" [routerLink]="['/delivery-agent-home']" routerLinkActive="active">Delivery Home</a>
+        </li>
+        <li class="nav-item" *ngIf="isDeliveryAgent">
+          <a class="nav-link" [routerLink]="['/delivery-agent-dashboard']" routerLinkActive="active">Dashboard</a>
+        </li>
+      </ul>
+
+      <!-- Search Bar (Only for Customers) -->
+      <div class="d-flex flex-grow-1 justify-content-center mx-3" *ngIf="isCustomer && authService.isLoggedIn()">
+        <div class="input-group w-50">
+          <span class="input-group-text bg-light">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" class="form-control" placeholder="Search for products..." (input)="search($event)">
+        </div>
+      </div>
+
+      <!-- User Actions -->
+      <div class="navbar-nav ms-auto">
+        <ng-container *ngIf="!authService.isLoggedIn(); else loggedIn">
+          <li class="nav-item">
+            <a class="nav-link btn btn-outline-light me-2 login-signup-btn" [routerLink]="['/login']">Login</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link btn btn-outline-light login-signup-btn" [routerLink]="['/signup']">Signup</a>
+          </li>
+        </ng-container>
+
+        <ng-template #loggedIn>
+          <!-- Cart Link for Customers -->
+          <li class="nav-item" *ngIf="isCustomer">
+            <a class="nav-link text-white" [routerLink]="['/cart']">
+              Cart
+              <span *ngIf="cartItemCount > 0" class="badge bg-danger ms-1">{{ cartItemCount }}</span>
             </a>
-            <button class="btn btn-primary w-100 mt-2" (click)="addToCart(product.id)">Add to Cart</button>
-          </div>
-        </div>
+          </li>
+
+          <!-- Profile Dropdown -->
+          <li class="nav-item dropdown" (click)="toggleDropdown(); $event.preventDefault()">
+            <a class="nav-link dropdown-toggle text-white" id="profileDropdown" role="button" aria-expanded="false">
+              {{ firstName ? firstName : 'Profile' }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" [ngClass]="{'show': isDropdownOpen}" aria-labelledby="profileDropdown">
+              <!-- Common Options for All Users -->
+              <li>
+                <a class="dropdown-item" (click)="navigateTo('/profile')">Profile</a>
+              </li>
+              <li>
+                <a class="dropdown-item" (click)="navigateTo('/update-profile')">Update Profile</a>
+              </li>
+
+              <!-- Customer-Specific Options -->
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="navigateTo('/manage-addresses')">Manage Addresses</a>
+              </li>
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="navigateTo('/cart')">Place Order</a>
+              </li>
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="navigateTo('/order-history')">Order History</a>
+              </li>
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="openRoleRequestModal('Merchant')">Become a Merchant</a>
+              </li>
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="openRoleRequestModal('DeliveryAgent')">Become a Delivery Agent</a>
+              </li>
+              <li *ngIf="isCustomer">
+                <a class="dropdown-item" (click)="openCheckRequestModal()">Check My Role Requests</a>
+              </li>
+
+              <!-- Logout -->
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item" (click)="logout()">Logout</a>
+              </li>
+            </ul>
+          </li>
+        </ng-template>
       </div>
     </div>
   </div>
+</nav>
 
-  <!-- Categories -->
-  <div class="container mb-5 px-5" *ngIf="categories.length > 0">
-    <h2 class="fw-bold mb-4">Explore Categories</h2>
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
-      <div class="col" *ngFor="let category of categories">
-        <div class="card text-center border">
-          <div class="card-body">
-            <h5 class="card-title">{{ category }}</h5>
-            <a class="btn btn-outline-primary" [routerLink]="['/products']" [queryParams]="{ category: category }">View Products</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <ng-template #loading>
-    <div class="container text-center py-5 px-5">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-    </div>
-  </ng-template>
-</ng-container>
-
-<!-- Role-Specific Banners for Merchant, Delivery Agent, and Admin -->
-<ng-template #roleSpecificContent>
-  <div class="bg-primary text-white py-5 mb-4">
-    <div class="container text-center px-5">
-      <!-- Merchant -->
-      <ng-container *ngIf="userRole === 'Merchant'">
-        <h1 class="display-4 fw-bold">Welcome, Merchant!</h1>
-        <p class="lead mb-4">Manage your products and grow your business with EShoppingZone.</p>
-        <a class="btn btn-light btn-lg" [routerLink]="['/merchant-dashboard']">Go to Dashboard</a>
-      </ng-container>
-
-      <!-- Delivery Agent -->
-      <ng-container *ngIf="userRole === 'Delivery Agent'">
-        <h1 class="display-4 fw-bold">Welcome, Delivery Agent!</h1>
-        <p class="lead mb-4">Track and manage your deliveries with ease.</p>
-        <a class="btn btn-light btn-lg" [routerLink]="['/delivery-agent-home']">Go to Delivery Home</a>
-      </ng-container>
-
-      <!-- Admin -->
-      <ng-container *ngIf="userRole === 'Admin'">
-        <h1 class="display-4 fw-bold">Welcome, Admin!</h1>
-        <p class="lead mb-4">Manage users, roles, and more from your Admin Dashboard.</p>
-        <a class="btn btn-light btn-lg" [routerLink]="['/admin-home']">Go to Admin Dashboard</a>
-      </ng-container>
-    </div>
-  </div>
-</ng-template>
-
-<!-- Modals (unchanged) -->
-<div *ngIf="showLoginModal" class="modal d-block" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel">
-  <div class="modal-dialog modal-dialog-centered">
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmRoleModal" tabindex="-1" aria-labelledby="confirmRoleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title" id="loginModalLabel">Login Required 😊</h5>
-        <button type="button" class="btn-close btn-close-white" (click)="closeLoginModal()" aria-label="Close"></button>
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmRoleModalLabel">Confirm Role Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body text-center">
-        <p class="lead">Login or signup to continue 🛒✨</p>
-        <div class="d-flex justify-content-center gap-3 mt-3">
-          <a class="btn btn-primary" [routerLink]="['/login']" (click)="closeLoginModal()">Login</a>
-          <a class="btn btn-outline-primary" [routerLink]="['/signup']" (click)="closeLoginModal()">Signup</a>
-        </div>
+      <div class="modal-body">
+        Are you sure you want to become a {{ selectedRole }}?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+        <button type="button" class="btn btn-primary" (click)="confirmRoleRequest()">Yes, I Confirm</button>
       </div>
     </div>
   </div>
 </div>
-<div *ngIf="showLoginModal" class="modal-backdrop fade show" (click)="closeLoginModal()"></div>
 
-<div *ngIf="showQuantityModal" class="modal d-block" id="quantityModal" tabindex="-1" aria-labelledby="quantityModalLabel">
-  <div class="modal-dialog modal-dialog-centered">
+<!-- Pending Request Modal -->
+<div class="modal fade" id="pendingRequestModal" tabindex="-1" aria-labelledby="pendingRequestModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title" id="quantityModalLabel">Select Quantity 🛒</h5>
-        <button type="button" class="btn-close btn-close-white" (click)="closeQuantityModal()" aria-label="Close"></button>
+      <div class="modal-header">
+        <h5 class="modal-title" id="pendingRequestModalLabel">Pending Role Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body text-center">
-        <div class="mb-3">
-          <label for="quantityInput" class="form-label">Quantity</label>
-          <div class="input-group w-50 mx-auto">
-            <button class="btn btn-outline-primary" (click)="quantity = quantity > 1 ? quantity - 1 : 1">-</button>
-            <input type="number" class="form-control text-center" id="quantityInput" [(ngModel)]="quantity" min="1" required>
-            <button class="btn btn-outline-primary" (click)="quantity = quantity + 1">+</button>
-          </div>
-        </div>
-        <button class="btn btn-primary w-100" (click)="confirmAddToCart()">Add to Cart</button>
+      <div class="modal-body">
+        <p>You already have a pending request to become a {{ roleRequest?.requestedRole }}.</p>
+        <p>Requested on: {{ roleRequest?.requestedAt | date:'medium' }}</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
 </div>
-<div *ngIf="showQuantityModal" class="modal-backdrop fade show" (click)="closeQuantityModal()"></div>
+
+<!-- Role Request Status Modal -->
+<div class="modal fade" id="roleRequestStatusModal" tabindex="-1" aria-labelledby="roleRequestStatusModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="roleRequestStatusModalLabel">Role Request Status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="roleRequest; else noRequest">
+          <p><strong>Request ID:</strong> {{ roleRequest.id }}</p>
+          <p><strong>Requested Role:</strong> {{ roleRequest.requestedRole }}</p>
+          <p><strong>Status:</strong> {{ roleRequest.status }}</p>
+          <p><strong>Requested At:</strong> {{ roleRequest.requestedAt | date:'medium' }}</p>
+          <p *ngIf="roleRequest.reviewedAt"><strong>Reviewed At:</strong> {{ roleRequest.reviewedAt | date:'medium' }}</p>
+        </div>
+        <ng-template #noRequest>
+          <p>{{ roleRequestMessage || 'No role request found.' }}</p>
+        </ng-template>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Message Modal -->
+<div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="messageModalLabel">Role Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="errorMessage" class="alert alert-danger" role="alert">
+          {{ errorMessage }}
+        </div>
+        <div *ngIf="roleRequestMessage" class="alert alert-success" role="alert">
+          {{ roleRequestMessage }}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 ```
 
 - **Changes**:
-  - Wrapped the existing Customer/Guest content in an `*ngIf` condition to show only for `userRole === 'Customer' || userRole === 'Guest'`.
-  - Added a `#roleSpecificContent` template for other roles (Merchant, Delivery Agent, Admin) with tailored welcome messages and links to their respective dashboards.
-  - Kept the modals unchanged since they’re only relevant for Customers.
+  - Added `authService.isLoggedIn()` to the conditions for Products, Deals, and the search bar to ensure they only appear for logged-in Customers.
+  - For guest users (`!authService.isLoggedIn()`), the navbar will only show the "Home" link, "Login", and "Signup" buttons.
 
-#### Update `home.component.css`
-The provided `home.component.css` actually contains styles for the `HeaderComponent` (e.g., `.navbar-brand`, `.nav-link`). Let’s correct this by providing the proper styles for `HomeComponent` and adding any necessary styles for the role-specific banners.
+---
 
-**`home.component.css` (Updated)**:
-```css
-.image-container {
-  width: 100%;
-  height: 200px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+### Issue 2: Nothing Happens When Clicking "Become a Merchant", "Become a Delivery Agent", "Check My Role Request" for Customers
+The buttons "Become a Merchant", "Become a Delivery Agent", and "Check My Role Requests" in the profile dropdown are not functioning when clicked by a Customer. This is likely due to an issue with the modal initialization using Bootstrap’s JavaScript, which requires the Bootstrap bundle to be included and properly initialized.
 
-.card-img-top {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+#### Fix: Ensure Bootstrap JavaScript is Included and Modals Work
+1. **Check Bootstrap Inclusion**:
+   Ensure that the Bootstrap JavaScript bundle is included in your `index.html`. You need the bundle that includes Popper.js for dropdowns and modals to work.
 
-.card-body {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
+   **`index.html` (Updated)**:
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>EShoppingZone</title>
+     <!-- Bootstrap CSS -->
+     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+     <!-- Bootstrap Icons -->
+     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+   </head>
+   <body>
+     <app-root></app-root>
+     <!-- Bootstrap JS Bundle (includes Popper.js) -->
+     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+   </body>
+   </html>
+   ```
 
-.card-title {
-  color: #333;
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+   - Ensure the Bootstrap JS bundle is added at the bottom of the `<body>` tag.
 
-.card-text {
-  margin-bottom: 0.5rem;
-}
+2. **Debug Modal Initialization**:
+   The `openRoleRequestModal` and `openCheckRequestModal` methods in `HeaderComponent` use Bootstrap’s JavaScript to show modals (`bootstrap.Modal`). If these methods are not working, it could be due to timing issues with the DOM or errors in the modal logic. Let’s ensure the methods handle errors and log issues for debugging.
 
-.bg-primary {
-  background-color: #0d6efd !important;
-}
+   **`header.component.ts` (Updated)**:
+   ```typescript
+   import { Component, OnInit, OnDestroy } from '@angular/core';
+   import { CommonModule } from '@angular/common';
+   import { RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
+   import { AuthService } from '../../services/auth.service';
+   import { CartService } from '../../services/cart.service';
+   import { RoleService } from '../../services/role.service';
+   import { Subscription } from 'rxjs';
 
-.py-5 {
-  padding-top: 3rem !important;
-  padding-bottom: 3rem !important;
-}
+   interface RoleRequest {
+     id: number;
+     userId: number;
+     requestedRole: string;
+     status: string;
+     requestedAt: string;
+     reviewedAt: string | null;
+     user: {
+       id: number;
+       userName: string;
+       email: string;
+       phoneNumber: string;
+     } | null;
+   }
 
-.mb-4 {
-  margin-bottom: 1.5rem !important;
-}
+   interface ResponseDTO<T> {
+     success: boolean;
+     message: string;
+     data: T;
+   }
 
-.display-4 {
-  font-size: 2.5rem;
-}
+   @Component({
+     selector: 'app-header',
+     standalone: true,
+     imports: [CommonModule, RouterLink, RouterLinkActive],
+     templateUrl: './header.component.html',
+     styleUrls: ['./header.component.css']
+   })
+   export class HeaderComponent implements OnInit, OnDestroy {
+     searchQuery: string = '';
+     isDropdownOpen: boolean = false;
+     cartItemCount: number = 0;
+     firstName: string | null = null;
+     isMerchant: boolean = false;
+     isCustomer: boolean = false;
+     isDeliveryAgent: boolean = false;
+     selectedRole: string | null = null;
+     roleRequest: RoleRequest | null = null;
+     roleRequestMessage: string | null = null;
+     errorMessage: string | null = null;
+     private authSubscription!: Subscription;
 
-.fw-bold {
-  font-weight: 700 !important;
-}
+     constructor(
+       public authService: AuthService,
+       private router: Router,
+       private cartService: CartService,
+       private roleService: RoleService
+     ) {
+       this.updateCartCount();
+     }
 
-.lead {
-  font-size: 1.25rem;
-  font-weight: 300;
-}
+     ngOnInit() {
+       this.authSubscription = this.authService.authState$.subscribe(isLoggedIn => {
+         this.updateHeaderState(isLoggedIn);
+       });
 
-.btn-light {
-  background-color: #fff;
-  border-color: #fff;
-  color: #0d6efd;
-}
+       this.router.events.subscribe(event => {
+         if (event instanceof NavigationEnd) {
+           this.closeDropdown();
+         }
+       });
+     }
 
-.btn-light:hover {
-  background-color: #f8f9fa;
-  border-color: #f8f9fa;
-  color: #0d6efd;
-}
+     ngOnDestroy() {
+       if (this.authSubscription) {
+         this.authSubscription.unsubscribe();
+       }
+     }
 
-.text-center {
-  text-align: center;
-}
+     updateHeaderState(isLoggedIn: boolean) {
+       if (isLoggedIn) {
+         this.authService.viewProfile().subscribe({
+           next: (response) => {
+             if (response.success && response.data) {
+               this.firstName = response.data.fullName.split(' ')[0];
+             }
+           },
+           error: (err) => {
+             console.error('Error fetching profile:', err);
+             this.firstName = null;
+           }
+         });
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
+         const userRole = this.authService.getUserRole();
+         this.isMerchant = userRole === 'Merchant';
+         this.isCustomer = userRole === 'Customer';
+         this.isDeliveryAgent = userRole === 'Delivery Agent';
 
-.px-5 {
-  padding-left: 3rem !important;
-  padding-right: 3rem !important;
-}
+         if (this.isCustomer) {
+           this.cartService.cartUpdate$.subscribe(count => {
+             this.cartItemCount = count;
+           });
+           this.updateCartCount();
+         } else {
+           this.cartItemCount = 0;
+         }
+       } else {
+         this.firstName = null;
+         this.isMerchant = false;
+         this.isCustomer = false;
+         this.isDeliveryAgent = false;
+         this.cartItemCount = 0;
+       }
+     }
 
-/* Ensure consistent styling for role-specific banners */
-.bg-primary.text-white {
-  min-height: 300px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+     search(event: Event) {
+       const query = (event.target as HTMLInputElement).value;
+       this.router.navigate(['/products'], { queryParams: { search: query } });
+     }
+
+     toggleDropdown(event?: Event) {
+       if (event) {
+         event.preventDefault();
+       }
+       this.isDropdownOpen = !this.isDropdownOpen;
+     }
+
+     closeDropdown() {
+       this.isDropdownOpen = false;
+     }
+
+     logout() {
+       this.authService.logout();
+       this.isDropdownOpen = false;
+     }
+
+     updateCartCount() {
+       if (this.authService.isLoggedIn() && this.authService.getUserRole() === 'Customer') {
+         this.cartService.getCart().subscribe({
+           next: (response) => {
+             if (response.success && response.data) {
+               this.cartItemCount = response.data.items.reduce((sum, item) => sum + item.quantity, 0);
+             }
+           },
+           error: (err) => {
+             console.error('Error fetching cart count:', err);
+           }
+         });
+       }
+     }
+
+     navigateTo(route: string) {
+       this.router.navigate([route]);
+       this.closeDropdown();
+     }
+
+     openRoleRequestModal(role: string) {
+       this.selectedRole = role;
+       this.roleService.getMyRoleRequest().subscribe({
+         next: (response) => {
+           if (response.success && response.data) {
+             this.roleRequest = response.data;
+             const pendingModalElement = document.getElementById('pendingRequestModal');
+             if (pendingModalElement) {
+               const pendingModal = new (window as any).bootstrap.Modal(pendingModalElement);
+               pendingModal.show();
+             } else {
+               console.error('Pending Request Modal element not found');
+             }
+           } else {
+             const confirmModalElement = document.getElementById('confirmRoleModal');
+             if (confirmModalElement) {
+               const confirmModal = new (window as any).bootstrap.Modal(confirmModalElement);
+               confirmModal.show();
+             } else {
+               console.error('Confirm Role Modal element not found');
+             }
+           }
+         },
+         error: (err) => {
+           this.errorMessage = err.error?.message || 'Failed to check role requests.';
+           console.error('Error checking role requests:', err);
+           const messageModalElement = document.getElementById('messageModal');
+           if (messageModalElement) {
+             const messageModal = new (window as any).bootstrap.Modal(messageModalElement);
+             messageModal.show();
+           } else {
+             console.error('Message Modal element not found');
+           }
+         }
+       });
+     }
+
+     confirmRoleRequest() {
+       if (!this.selectedRole) return;
+
+       this.roleService.submitRoleRequest({ requestedRole: this.selectedRole }).subscribe({
+         next: (response) => {
+           const confirmModalElement = document.getElementById('confirmRoleModal');
+           if (confirmModalElement) {
+             const confirmModal = (window as any).bootstrap.Modal.getInstance(confirmModalElement);
+             confirmModal.hide();
+           }
+
+           const messageModalElement = document.getElementById('messageModal');
+           if (messageModalElement) {
+             const messageModal = new (window as any).bootstrap.Modal(messageModalElement);
+             this.errorMessage = response.success ? null : response.message;
+             this.roleRequestMessage = response.success ? response.message : null;
+             messageModal.show();
+           } else {
+             console.error('Message Modal element not found');
+           }
+         },
+         error: (err) => {
+           const confirmModalElement = document.getId('confirmRoleModal');
+           if (confirmModalElement) {
+             const confirmModal = (window as any).bootstrap.Modal.getInstance(confirmModalElement);
+             confirmModal.hide();
+           }
+
+           const messageModalElement = document.getElementById('messageModal');
+           if (messageModalElement) {
+             const messageModal = new (window as any).bootstrap.Modal(messageModalElement);
+             this.errorMessage = err.error?.message || 'Failed to submit role request.';
+             this.roleRequestMessage = null;
+             messageModal.show();
+           } else {
+             console.error('Message Modal element not found');
+           }
+         }
+       });
+     }
+
+     openCheckRequestModal() {
+       this.roleService.getMyRoleRequest().subscribe({
+         next: (response) => {
+           this.roleRequest = response.success ? response.data : null;
+           this.roleRequestMessage = response.message;
+           const statusModalElement = document.getElementById('roleRequestStatusModal');
+           if (statusModalElement) {
+             const statusModal = new (window as any).bootstrap.Modal(statusModalElement);
+             statusModal.show();
+           } else {
+             console.error('Role Request Status Modal element not found');
+           }
+         },
+         error: (err) => {
+           this.errorMessage = err.error?.message || 'Failed to check role requests.';
+           console.error('Error checking role requests:', err);
+           const messageModalElement = document.getElementById('messageModal');
+           if (messageModalElement) {
+             const messageModal = new (window as any).bootstrap.Modal(messageModalElement);
+             messageModal.show();
+           } else {
+             console.error('Message Modal element not found');
+           }
+         }
+       });
+     }
+   }
+   ```
+
+   - **Changes**:
+     - Added checks for modal elements using `document.getElementById` and logged errors if elements are not found.
+     - Ensured modals are properly initialized and shown using `bootstrap.Modal`.
+
+3. **Test the Buttons**:
+   - Log in as a Customer and click "Become a Merchant", "Become a Delivery Agent", and "Check My Role Requests".
+   - The modals should now appear. If there’s a pending request, the `pendingRequestModal` should show; otherwise, the `confirmRoleModal` should appear for role requests, and `roleRequestStatusModal` for checking requests.
+   - If the modals still don’t appear, check the browser console for errors (e.g., Bootstrap not loaded, modal elements not found).
+
+---
+
+### Issue 3: Merchant Quick Options Are Missing
+The `HeaderComponent` currently shows "Dashboard" and "Manage Products" for Merchants in the navbar, but there are no quick options in the profile dropdown for Merchants, unlike Customers who have options like "Manage Addresses" and "Order History". Let’s add Merchant-specific quick options in the dropdown, such as "Add Product", "View Merchant Products", and "Check Role Requests".
+
+#### Fix: Add Merchant Quick Options to the Profile Dropdown
+**`header.component.html` (Updated Dropdown Section)**:
+Update the profile dropdown section to include Merchant-specific options:
+
+```html
+<!-- Profile Dropdown -->
+<li class="nav-item dropdown" (click)="toggleDropdown(); $event.preventDefault()">
+  <a class="nav-link dropdown-toggle text-white" id="profileDropdown" role="button" aria-expanded="false">
+    {{ firstName ? firstName : 'Profile' }}
+  </a>
+  <ul class="dropdown-menu dropdown-menu-end" [ngClass]="{'show': isDropdownOpen}" aria-labelledby="profileDropdown">
+    <!-- Common Options for All Users -->
+    <li>
+      <a class="dropdown-item" (click)="navigateTo('/profile')">Profile</a>
+    </li>
+    <li>
+      <a class="dropdown-item" (click)="navigateTo('/update-profile')">Update Profile</a>
+    </li>
+
+    <!-- Customer-Specific Options -->
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="navigateTo('/manage-addresses')">Manage Addresses</a>
+    </li>
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="navigateTo('/cart')">Place Order</a>
+    </li>
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="navigateTo('/order-history')">Order History</a>
+    </li>
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="openRoleRequestModal('Merchant')">Become a Merchant</a>
+    </li>
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="openRoleRequestModal('DeliveryAgent')">Become a Delivery Agent</a>
+    </li>
+    <li *ngIf="isCustomer">
+      <a class="dropdown-item" (click)="openCheckRequestModal()">Check My Role Requests</a>
+    </li>
+
+    <!-- Merchant-Specific Options -->
+    <li *ngIf="isMerchant">
+      <a class="dropdown-item" (click)="navigateTo('/add-product')">Add Product</a>
+    </li>
+    <li *ngIf="isMerchant">
+      <a class="dropdown-item" (click)="navigateTo('/manage-products')">View Merchant Products</a>
+    </li>
+    <li *ngIf="isMerchant">
+      <a class="dropdown-item" (click)="openCheckRequestModal()">Check My Role Requests</a>
+    </li>
+
+    <!-- Logout -->
+    <li><hr class="dropdown-divider"></li>
+    <li>
+      <a class="dropdown-item" (click)="logout()">Logout</a>
+    </li>
+  </ul>
+</li>
 ```
 
 - **Changes**:
-  - Replaced the incorrect styles (which belonged to `HeaderComponent`) with the appropriate styles for `HomeComponent`.
-  - Added styles to ensure role-specific banners (Merchant, Delivery Agent, Admin) have consistent height and alignment with the Customer/Guest banner.
-  - Kept existing styles for product cards, modals, and other elements.
+  - Added Merchant-specific options in the dropdown: "Add Product" (`/add-product`), "View Merchant Products" (`/manage-products`), and "Check My Role Requests" (reusing `openCheckRequestModal`).
+  - These routes already exist in `app.routes.ts`, so they should work seamlessly.
+
+#### Test Merchant Quick Options
+- Log in as a Merchant and check the profile dropdown.
+- You should see "Add Product", "View Merchant Products", and "Check My Role Requests" alongside the common options (Profile, Update Profile, Logout).
 
 ---
 
-### Step 3: Test and Debug
-1. **Guest User**:
-   - Log out and visit `/home`. You should see the banner (“Welcome to EShoppingZone”), top picks, and categories, with an “Add to Cart” button that prompts login.
-2. **Customer**:
-   - Log in as a Customer and visit `/home`. The layout should be the same as for Guests, but “Add to Cart” should show the quantity modal.
-3. **Merchant**:
-   - Log in as a Merchant and visit `/home`. You should see “Welcome, Merchant!” with a “Go to Dashboard” button linking to `/merchant-dashboard`. No product listings or categories should be shown.
-4. **Delivery Agent**:
-   - Log in as a Delivery Agent and visit `/home`. You should see “Welcome, Delivery Agent!” with a “Go to Delivery Home” button linking to `/delivery-agent-home`.
-5. **Admin**:
-   - Log in as an Admin and visit `/home`. You should see “Welcome, Admin!” with a “Go to Admin Dashboard” button linking to `/admin-home`.
+### Issue 4: Delivery Agent Header Contains "Home" and "Delivery Home" - What Should Be Done?
+The Delivery Agent navbar currently shows both "Home" and "Delivery Home" links. This is redundant because "Delivery Home" (`/delivery-agent-home`) is the primary landing page for Delivery Agents after login, and "Home" (`/`) takes them to the general homepage, which is more relevant for Customers and Guests. Let’s remove the "Home" link for Delivery Agents to streamline their navigation.
+
+#### Fix: Remove "Home" Link for Delivery Agents
+**`header.component.html` (Updated Navigation Links Section)**:
+```html
+<!-- Navigation Links -->
+<ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-3">
+  <!-- Show Home link for non-Delivery Agents -->
+  <li class="nav-item" *ngIf="!isDeliveryAgent">
+    <a class="nav-link" [routerLink]="['/']" routerLinkActive="active">Home</a>
+  </li>
+  <!-- Show Products and Deals only for authenticated Customers -->
+  <li class="nav-item" *ngIf="isCustomer && authService.isLoggedIn()">
+    <a class="nav-link" [routerLink]="['/products']" routerLinkActive="active">Products</a>
+  </li>
+  <li class="nav-item" *ngIf="isCustomer && authService.isLoggedIn()">
+    <a class="nav-link" [routerLink]="['/deals']" routerLinkActive="active">Deals</a>
+  </li>
+  <!-- Merchant Links -->
+  <li class="nav-item" *ngIf="isMerchant">
+    <a class="nav-link" [routerLink]="['/merchant-dashboard']" routerLinkActive="active">Dashboard</a>
+  </li>
+  <li class="nav-item" *ngIf="isMerchant">
+    <a class="nav-link" [routerLink]="['/manage-products']" routerLinkActive="active">Manage Products</a>
+  </li>
+  <!-- Delivery Agent Links -->
+  <li class="nav-item" *ngIf="isDeliveryAgent">
+    <a class="nav-link" [routerLink]="['/delivery-agent-home']" routerLinkActive="active">Delivery Home</a>
+  </li>
+  <li class="nav-item" *ngIf="isDeliveryAgent">
+    <a class="nav-link" [routerLink]="['/delivery-agent-dashboard']" routerLinkActive="active">Dashboard</a>
+  </li>
+</ul>
+```
+
+- **Changes**:
+  - Added `*ngIf="!isDeliveryAgent"` to the "Home" link so it only appears for non-Delivery Agent users.
+  - Delivery Agents will now only see "Delivery Home" and "Dashboard" in their navbar, which is more relevant to their role.
+
+#### Test Delivery Agent Navbar
+- Log in as a Delivery Agent and check the navbar.
+- You should only see "Delivery Home" and "Dashboard", with no "Home" link.
 
 ---
 
-### Step 4: Additional Considerations
-- **Styling Enhancements**:
-  - You might want to add role-specific background images or icons to make the banners more visually distinct. For example, add a background image for each role:
-    ```html
-    <div class="bg-primary text-white py-5 mb-4" [ngClass]="{
-      'banner-customer': userRole === 'Customer' || userRole === 'Guest',
-      'banner-merchant': userRole === 'Merchant',
-      'banner-delivery-agent': userRole === 'Delivery Agent',
-      'banner-admin': userRole === 'Admin'
-    }">
-    ```
-    ```css
-    .banner-customer {
-      background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://via.placeholder.com/1500x500?text=Customer+Background');
-      background-size: cover;
-      background-position: center;
-    }
-    .banner-merchant {
-      background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://via.placeholder.com/1500x500?text=Merchant+Background');
-      background-size: cover;
-      background-position: center;
-    }
-    .banner-delivery-agent {
-      background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://via.placeholder.com/1500x500?text=Delivery+Background');
-      background-size: cover;
-      background-position: center;
-    }
-    .banner-admin {
-      background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://via.placeholder.com/1500x500?text=Admin+Background');
-      background-size: cover;
-      background-position: center;
-    }
-    ```
-  - Replace the placeholder URLs with actual images.
+### Summary of Changes
+**It’s 8:15 PM IST on Monday, May 19, 2025.**
 
-- **Dynamic Content for Other Roles**:
-  - For Merchants, you could fetch and display their recent products.
-  - For Delivery Agents, you could show their pending deliveries.
-  - For Admins, you could show a summary of pending role requests.
-  - If you’d like to add this, let me know, and we can extend the component to fetch role-specific data.
+- **Guest User Navbar**:
+  - Updated `HeaderComponent` to show only "Home", "Login", and "Signup" for guest users.
+- **Role Request Buttons for Customers**:
+  - Ensured Bootstrap JavaScript is included in `index.html` and added debugging for modal initialization in `HeaderComponent`.
+- **Merchant Quick Options**:
+  - Added "Add Product", "View Merchant Products", and "Check My Role Requests" to the Merchant’s profile dropdown.
+- **Delivery Agent Navbar**:
+  - Removed the "Home" link for Delivery Agents, keeping only "Delivery Home" and "Dashboard".
 
----
+#### Test All Scenarios
+1. **Guest User**: Log out and check the navbar – it should only show "Home", "Login", and "Signup".
+2. **Customer Role Requests**: Log in as a Customer, click "Become a Merchant", "Become a Delivery Agent", and "Check My Role Requests" – modals should appear.
+3. **Merchant Quick Options**: Log in as a Merchant, check the profile dropdown for the new options.
+4. **Delivery Agent Navbar**: Log in as a Delivery Agent, confirm the navbar only shows "Delivery Home" and "Dashboard".
 
-### Step 5: Summary
-**It’s 8:20 PM IST on Monday, May 19, 2025.**
-
-- **Updated Files**:
-  - `home.component.ts`: Added role detection and conditional product loading for Customers and Guests.
-  - `home.component.html`: Added role-specific banners for Merchant, Delivery Agent, and Admin while preserving the Customer/Guest layout.
-  - `home.component.css`: Corrected styles to match `HomeComponent` and added styling for role-specific banners.
-- **Fixes**:
-  - The homepage now displays role-specific content for each user type while keeping the full product listing experience for Customers and Guests.
-
-The homepage should now correctly display role-specific content. Please test the changes and let me know if you’d like to add more features (e.g., dynamic data for other roles) or proceed with the UI enhancements to make it industry-level! 🚀
+Let me know if everything works as expected or if you’d like to proceed with further UI enhancements! 🚀
