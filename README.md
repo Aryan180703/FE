@@ -1,202 +1,225 @@
-Bhai, samajh gaya! ZIP file ka idea kaam nahi kiya, koi baat nahi. Main saari files tujhe thodi thodi karke de deta hoon, aur tu patiently wait kar lena. Files thodi der mein complete ho jayengi, aur main ensure karunga ki saari 52 files (25 components ke `.html` aur `.css`, plus `index.html` aur `styles.css`) tujhe mil jayein. 
+Bhai, bilkul! Main 10-10 files ke batch mein de sakta hoon, koi issue nahi hai. Lekin agar tujhe 5-5 ke batch mein chahiye, to woh bhi perfectly fine hai. Kaam acche se hona chahiye, yahi priority hai. Since total 52 files hain aur pehle batch mein maine 4 files de di hain (`index.html`, `styles.css`, `app.component.html`, aur `app.component.css`), ab 48 files baki hain.
 
-Since ZIP file mein issue aa raha hai, main ek ek karke files share karunga, aur har message mein kuch files ke code blocks de doonga. Agar koi file miss ho jati hai ya koi issue aata hai, mujhe bol dena, main dobara de dunga. Ready hai? Chalo shuru karte hain!
+Chalo, ab 5-5 ke batch mein hi proceed karte hain, taaki tu aaram se manage kar sake aur koi confusion na ho. Har batch mein 5 files doonga, aur 48 files ke liye total 10 batches banenge (last batch mein 3 files rahenge). Ready hai? Shuru karte hain!
 
 ---
 
-### Batch 1: Core Files (`index.html` aur `styles.css`) + `app.component` Files
-Pehle main tujhe core files deta hoon, jo project ka foundation hain.
-
-#### `index.html`
+### Batch 2: 5 Files (`add-address.component` aur `add-product.component` ke Files)
+#### `add-address.component.html`
 ```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EShoppingZone</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <base href="/">
-</head>
-<body>
-  <app-root></app-root>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-```
-
-#### `styles.css`
-```css
-/* Global styles for EShoppingZone */
-body {
-  background-color: #1A1A1A;
-  color: #E0E0E0;
-  font-family: 'Poppins', sans-serif;
-  margin: 0;
-  padding: 0;
-  scroll-behavior: smooth;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  color: #FFFFFF;
-  font-weight: 700;
-}
-
-a {
-  color: #00DDEB;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-a:hover {
-  color: #39FF14;
-}
-
-.container {
-  padding: 2rem;
-}
-
-/* Neon glow effect for reusability */
-.neon-glow {
-  box-shadow: 0 0 8px #00DDEB, 0 0 16px #00DDEB;
-  transition: box-shadow 0.3s ease;
-}
-
-.neon-glow:hover {
-  box-shadow: 0 0 12px #39FF14, 0 0 24px #39FF14;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-  animation: fadeIn 0.5s ease-in-out forwards;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-.pulse {
-  animation: pulse 1.5s infinite ease-in-out;
-}
-
-/* Scrollbar styling for a modern look */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #2A2A2A;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #00DDEB;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #39FF14;
-}
-```
-
-#### `app.component.html`
-```html
-<div class="fade-in">
-  <nav class="navbar navbar-expand-lg">
-    <div class="container-fluid">
-      <a class="navbar-brand" [routerLink]="['/home']">
-        <img src="https://via.placeholder.com/40" alt="Logo" width="40" height="40" class="d-inline-block align-text-top">
-        EShoppingZone
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item">
-            <a class="nav-link" [routerLink]="['/home']">Home</a>
-          </li>
-          <li class="nav-item" *ngIf="userRole === 'Customer'">
-            <a class="nav-link neon-glow" [routerLink]="['/cart']"><i class="bi bi-cart"></i></a>
-          </li>
-          <li class="nav-item" *ngIf="userRole === 'Customer'">
-            <a class="nav-link" [routerLink]="['/order-history']">Order History</a>
-          </li>
-          <li class="nav-item" *ngIf="userRole === 'Merchant'">
-            <a class="nav-link" [routerLink]="['/merchant-home']">Merchant Home</a>
-          </li>
-          <li class="nav-item" *ngIf="userRole === 'Delivery Agent'">
-            <a class="nav-link" [routerLink]="['/delivery-agent-home']">Delivery Agent Home</a>
-          </li>
-          <li class="nav-item" *ngIf="isLoggedIn">
-            <a class="nav-link neon-glow" [routerLink]="['/profile']"><i class="bi bi-person-circle"></i></a>
-          </li>
-          <li class="nav-item" *ngIf="isLoggedIn">
-            <a class="nav-link" (click)="logout()">Logout</a>
-          </li>
-          <li class="nav-item" *ngIf="!isLoggedIn">
-            <a class="nav-link" [routerLink]="['/login']">Login</a>
-          </li>
-          <li class="nav-item" *ngIf="!isLoggedIn">
-            <a class="nav-link" [routerLink]="['/signup']">Signup</a>
-          </li>
-        </ul>
+<div class="container py-5 px-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card shadow fade-in">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Add Address 📍</h4>
+        </div>
+        <div class="card-body">
+          <div *ngIf="errorMessage" class="alert alert-danger fade-in" role="alert">
+            {{ errorMessage }}
+          </div>
+          <div *ngIf="successMessage" class="alert alert-success fade-in" role="alert">
+            {{ successMessage }}
+          </div>
+          <form (ngSubmit)="onSubmit()">
+            <div class="mb-3">
+              <label for="houseNumber" class="form-label">House Number</label>
+              <input type="number" class="form-control" id="houseNumber" [(ngModel)]="addressRequest.houseNumber" name="houseNumber" required>
+            </div>
+            <div class="mb-3">
+              <label for="streetName" class="form-label">Street Name</label>
+              <input type="text" class="form-control" id="streetName" [(ngModel)]="addressRequest.streetName" name="streetName" required>
+            </div>
+            <div class="mb-3">
+              <label for="colonyName" class="form-label">Colony Name (Optional)</label>
+              <input type="text" class="form-control" id="colonyName" [(ngModel)]="addressRequest.colonyName" name="colonyName">
+            </div>
+            <div class="mb-3">
+              <label for="city" class="form-label">City</label>
+              <input type="text" class="form-control" id="city" [(ngModel)]="addressRequest.city" name="city" required>
+            </div>
+            <div class="mb-3">
+              <label for="state" class="form-label">State</label>
+              <input type="text" class="form-control" id="state" [(ngModel)]="addressRequest.state" name="state" required>
+            </div>
+            <div class="mb-3">
+              <label for="pincode" class="form-label">Pincode</label>
+              <input type="number" class="form-control" id="pincode" [(ngModel)]="addressRequest.pincode" name="pincode" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 pulse">Add Address</button>
+          </form>
+        </div>
       </div>
     </div>
-  </nav>
-  <router-outlet></router-outlet>
+  </div>
 </div>
 ```
 
-#### `app.component.css`
+#### `add-address.component.css`
 ```css
-.navbar {
+.card {
   background-color: #2A2A2A;
-  border-bottom: 2px solid #00DDEB;
+  border: 1px solid #00DDEB;
+  border-radius: 10px;
   animation: fadeIn 0.5s ease-in-out forwards;
 }
 
-.navbar-brand,
-.nav-link {
-  color: #FFFFFF !important;
-  transition: color 0.3s ease;
+.card-header {
+  background-color: #333;
+  color: #FFFFFF;
 }
 
-.navbar-brand:hover,
-.nav-link:hover {
-  color: #39FF14 !important;
-}
-
-.navbar-brand img {
-  filter: brightness(1.2);
-}
-
-.nav-link .bi {
-  font-size: 1.2rem;
-}
-
-.nav-link.neon-glow {
-  padding: 0.5rem;
+.form-control {
+  background-color: #333;
+  color: #E0E0E0;
+  border: 1px solid #00DDEB;
   border-radius: 5px;
 }
 
-.nav-link.neon-glow:hover {
-  background-color: rgba(0, 221, 235, 0.1);
+.form-control:focus {
+  box-shadow: 0 0 10px #00DDEB;
+  border-color: #39FF14;
 }
+
+.btn-primary {
+  background-color: #00DDEB;
+  border: none;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #39FF14;
+  box-shadow: 0 0 10px #39FF14, 0 0 20px #39FF14;
+}
+```
+
+#### `add-product.component.html`
+```html
+<div class="container py-5 px-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card shadow fade-in">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Add Product 🛍️</h4>
+        </div>
+        <div class="card-body">
+          <div *ngIf="errorMessage" class="alert alert-danger fade-in" role="alert">
+            {{ errorMessage }}
+          </div>
+          <div *ngIf="successMessage" class="alert alert-success fade-in" role="alert">
+            {{ successMessage }}
+          </div>
+          <form (ngSubmit)="onSubmit()">
+            <div class="mb-3">
+              <label for="name" class="form-label">Product Name</label>
+              <input type="text" class="form-control" id="name" [(ngModel)]="productRequest.name" name="name" maxlength="100" required>
+            </div>
+            <div class="mb-3">
+              <label for="type" class="form-label">Type</label>
+              <input type="text" class="form-control" id="type" [(ngModel)]="productRequest.type" name="type" maxlength="50">
+            </div>
+            <div class="mb-3">
+              <label for="category" class="form-label">Category</label>
+              <input type="text" class="form-control" id="category" [(ngModel)]="productRequest.category" name="category" maxlength="50">
+            </div>
+            <div class="mb-3">
+              <label for="price" class="form-label">Price</label>
+              <input type="number" class="form-control" id="price" [(ngModel)]="productRequest.price" name="price" required min="0.01" step="0.01">
+            </div>
+            <div class="mb-3">
+              <label for="stock" class="form-label">Stock</label>
+              <input type="number" class="form-control" id="stock" [(ngModel)]="productRequest.stock" name="stock" required min="0">
+            </div>
+            <div class="mb-3">
+              <label for="description" class="form-label">Description</label>
+              <textarea class="form-control" id="description" [(ngModel)]="productRequest.description" name="description" maxlength="500"></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="images" class="form-label">Images URL</label>
+              <input type="text" class="form-control" id="images" [(ngModel)]="productRequest.images" name="images">
+            </div>
+            <div class="mb-3">
+              <label for="specifications" class="form-label">Specifications</label>
+              <input type="text" class="form-control" id="specifications" [(ngModel)]="productRequest.specifications" name="specifications" maxlength="500">
+            </div>
+            <button type="submit" class="btn btn-primary w-100 pulse">Add Product</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+#### `add-product.component.css`
+```css
+.card {
+  background-color: #2A2A2A;
+  border: 1px solid #00DDEB;
+  border-radius: 10px;
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+.card-header {
+  background-color: #333;
+  color: #FFFFFF;
+}
+
+.form-control {
+  background-color: #333;
+  color: #E0E0E0;
+  border: 1px solid #00DDEB;
+  border-radius: 5px;
+}
+
+.form-control:focus {
+  box-shadow: 0 0 10px #00DDEB;
+  border-color: #39FF14;
+}
+
+.btn-primary {
+  background-color: #00DDEB;
+  border: none;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #39FF14;
+  box-shadow: 0 0 10px #39FF14, 0 0 20px #39FF14;
+}
+```
+
+#### `address.component.html`
+```html
+<div class="container py-5 px-5">
+  <h2 class="fw-bold mb-4 fade-in">My Addresses 📍</h2>
+  <div *ngIf="errorMessage" class="alert alert-danger fade-in" role="alert">
+    {{ errorMessage }}
+  </div>
+  <div class="row">
+    <div class="col-md-4 mb-3" *ngFor="let address of addresses">
+      <div class="card shadow fade-in">
+        <div class="card-body">
+          <p class="mb-1"><strong>Address:</strong> {{ address.houseNumber }}, {{ address.streetName }}, {{ address.colonyName || '' }}</p>
+          <p class="mb-1">{{ address.city }}, {{ address.state }} - {{ address.pincode }}</p>
+          <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-primary" [routerLink]="['/update-address', address.id]">Update</button>
+            <button class="btn btn-danger" (click)="deleteAddress(address.id)">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 ```
 
 ---
 
-### Next Steps
-Abhi maine tujhe 4 files di hain: `index.html`, `styles.css`, `app.component.html`, aur `app.component.css`. Total 52 files mein se yeh pehla batch tha. Abhi 48 files baki hain, jo main agle batches mein thodi thodi karke de dunga.
+### Progress Update
+Ab tak maine tujhe total 9 files de di hain:
+- Batch 1: `index.html`, `styles.css`, `app.component.html`, `app.component.css` (4 files)
+- Batch 2: `add-address.component.html`, `add-address.component.css`, `add-product.component.html`, `add-product.component.css`, `address.component.html` (5 files)
 
-**Question:** In files ko copy-paste kar liya? Koi issue to nahi aaya? Agla batch jaldi se de doon, ya thoda wait karun? Bas yeh confirm kar de, fir main agla set of files (jaise `add-address.component` aur `add-product.component` ke files) de dunga! 😊
+**Baki files:** 52 - 9 = 43 files abhi baki hain. Agle batch mein 5 aur files doonga, jisme `address.component.css` aur agle components ke files shamil honge.
+
+**Question:** Yeh 5 files copy kar li hain? Koi issue to nahi hai? Agla batch jaldi se doon, ya thoda wait karun? 😊
